@@ -202,6 +202,19 @@ public class VideoGroupObjectAdapter extends ObjectAdapter {
 
     public void sync(VideoGroup group) {
         for (Video video : group.getVideos()) {
+            int referenceIndex = indexOfRef(video);
+            boolean channelReferenceOnly = group.getPosition() == 0 && !video.hasVideo();
+
+            if (referenceIndex != -1) {
+                mVideoItems.get(referenceIndex).sync(video);
+                notifyItemRangeChanged(referenceIndex, 1);
+                continue;
+            }
+
+            if (channelReferenceOnly) {
+                continue;
+            }
+
             // Search for multiple occurrences (e.g. History section)
             for (int i = 0; i < mVideoItems.size(); i++) {
                 Video origin = mVideoItems.get(i);
@@ -213,6 +226,19 @@ public class VideoGroupObjectAdapter extends ObjectAdapter {
         }
 
         notifyOtherAdapters(group, TYPE_SYNC);
+    }
+
+    private int indexOfRef(Video item) {
+        int index = -1;
+
+        for (Video video : mVideoItems) {
+            index++;
+            if (video == item) {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     public boolean isEmpty() {

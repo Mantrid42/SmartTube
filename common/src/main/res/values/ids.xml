@@ -23,5 +23,7 @@
     <item name="action_screen_dimming" type="id"/>
     <item name="action_afr" type="id"/>
     <item name="channel_new_content" type="id"/>
+    <item name="channel_image_url" type="id"/>
+    <item name="channel_new_content_seen" type="id"/>
     <item name="linkify_click_handler" type="id"/>
 </resources>

@@ -69,11 +69,21 @@ public class HeaderVideoGroupObjectAdapter extends VideoGroupObjectAdapter {
     }
 
     public void setHeader(Object header) {
-        if (header == null && mHeader != null) {
-            notifyItemRangeRemoved(0, 1);
+        boolean hadHeader = mHeader != null;
+
+        if (header == mHeader) {
+            return;
         }
 
         mHeader = header;
+
+        if (header == null && hadHeader) {
+            super.notifyItemRangeRemoved(0, 1);
+        } else if (header != null && !hadHeader) {
+            super.notifyItemRangeInserted(0, 1);
+        } else if (header != null) {
+            super.notifyItemRangeChanged(0, 1);
+        }
     }
 
     public Object getHeader() {

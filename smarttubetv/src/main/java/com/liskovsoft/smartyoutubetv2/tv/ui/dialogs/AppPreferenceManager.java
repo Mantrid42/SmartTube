@@ -118,6 +118,7 @@ public class AppPreferenceManager {
             Preference preference = new Preference(mContext);
             preference.setPersistent(false);
             preference.setTitle(item.getTitle());
+            applyRequired(preference, item);
             preference.setOnPreferenceClickListener(pref -> {
                 item.onSelect(true);
                 return true;
@@ -127,6 +128,21 @@ public class AppPreferenceManager {
         }
 
         return result;
+    }
+
+    private void applyRequired(Preference preference, OptionItem item) {
+        OptionItem[] requiredItems = item.getRequired();
+
+        if (requiredItems == null) {
+            return;
+        }
+
+        for (OptionItem requiredItem : requiredItems) {
+            if (!requiredItem.isSelected()) {
+                preference.setEnabled(false);
+                return;
+            }
+        }
     }
 
     public Preference createSwitchPreference(OptionCategory category) {
@@ -140,6 +156,9 @@ public class AppPreferenceManager {
             preference.setDefaultValue(item.isSelected());
             preference.setOnPreferenceChangeListener((pref, newValue) -> {
                 item.onSelect((boolean) newValue);
+                if (mOnChange != null) {
+                    Utils.postDelayed(mOnChange, 0);
+                }
                 return true;
             });
 
@@ -177,7 +196,21 @@ public class AppPreferenceManager {
         pref.setOnPreferenceChangeListener((preference, newValue) -> {
             for (OptionItem optionItem : category.options) {
                 if (newValue.equals(optionItem.toString())) {
+                    OptionItem[] requiredItems = optionItem.getRequired();
+
+                    if (requiredItems != null) {
+                        for (OptionItem requiredItem : requiredItems) {
+                            if (!requiredItem.isSelected()) {
+                                MessageHelpers.showMessage(mContext, mContext.getString(R.string.require_checked, requiredItem.getTitle()));
+                                return false;
+                            }
+                        }
+                    }
+
                     optionItem.onSelect(true);
+                    if (mOnChange != null) {
+                        Utils.postDelayed(mOnChange, 0);
+                    }
                     break;
                 }
             }
@@ -215,6 +248,7 @@ public class AppPreferenceManager {
                                 for (OptionItem requiredItem : requiredItems) {
                                     if (!requiredItem.isSelected()) {
                                         MessageHelpers.showMessage(mContext, mContext.getString(R.string.require_checked, requiredItem.getTitle()));
+                                        return false;
                                     }
                                 }
                             }

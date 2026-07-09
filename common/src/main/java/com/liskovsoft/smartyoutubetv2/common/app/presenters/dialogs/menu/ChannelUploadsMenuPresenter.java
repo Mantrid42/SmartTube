@@ -11,10 +11,12 @@ import com.liskovsoft.smartyoutubetv2.common.R;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.ChannelPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.ChannelUploadsPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.VideoMenuPresenter.VideoMenuCallback;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
+import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelNewContentData;
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
 import io.reactivex.disposables.Disposable;
 
@@ -78,6 +80,7 @@ public class ChannelUploadsMenuPresenter extends BaseMenuPresenter {
         appendOpenChannelButton();
         appendUnsubscribeButton();
         appendMarkAsWatched();
+        appendMarkAsUnseen();
         appendTogglePinVideoToSidebarButton();
 
         mDialogPresenter.showDialog(mVideo.getTitle());
@@ -140,20 +143,35 @@ public class ChannelUploadsMenuPresenter extends BaseMenuPresenter {
     }
 
     private void appendMarkAsWatched() {
-        if (mVideo == null || !mVideo.hasNewContent) {
-            return;
-        }
-
-        boolean contentAlreadyLoaded = mVideo.groupPosition == 0;
-
-        if (contentAlreadyLoaded) {
+        if (mVideo == null || (!mVideo.hasNewContent &&
+                !ChannelNewContentData.isNewContentState(mVideo.channelNewContentState))) {
             return;
         }
 
         mDialogPresenter.appendSingleButton(
                 UiOptionItem.from(getContext().getString(R.string.mark_channel_as_watched), optionItem -> {
-                    mServiceManager.loadChannelUploads(mVideo, (group) -> {});
+                    ChannelNewContentData data = ChannelNewContentData.instance(getContext());
+                    data.markWatched(mVideo, (List<Video>) null);
+                    BrowsePresenter.instance(getContext()).syncItem(mVideo);
+                    mServiceManager.loadChannelUploads(mVideo, group -> {
+                        data.markWatched(mVideo, group);
+                        BrowsePresenter.instance(getContext()).syncItem(mVideo);
+                    });
                     MessageHelpers.showMessage(getContext(), R.string.channel_marked_as_watched);
+                }));
+    }
+
+    private void appendMarkAsUnseen() {
+        if (mVideo == null || mVideo.hasNewContent ||
+                ChannelNewContentData.isNewContentState(mVideo.channelNewContentState)) {
+            return;
+        }
+
+        mDialogPresenter.appendSingleButton(
+                UiOptionItem.from(getContext().getString(R.string.mark_channel_as_unseen), optionItem -> {
+                    ChannelNewContentData.instance(getContext()).markUnseen(mVideo);
+                    BrowsePresenter.instance(getContext()).syncItem(mVideo);
+                    MessageHelpers.showMessage(getContext(), R.string.channel_marked_as_unseen);
                 }));
     }
 

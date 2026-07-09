@@ -52,6 +52,7 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
     private int mSelectedItemIndex1 = -1;
     private int mSelectedItemIndex2 = -1;
     private Video mSelectedItem1;
+    private Video mSelectedItem2;
     private float mVideoGridScale;
     private final Runnable mRestore1Task = this::restorePosition1;
 
@@ -121,10 +122,14 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
     @Override
     public void update(VideoGroup group) {
         if (group.getPosition() == 0) {
-            addSearchHeader();
+            int action = group.getAction();
+
+            if (action != VideoGroup.ACTION_SYNC) {
+                addSearchHeader();
+            }
 
             // Smooth remove animation
-            if (group.getAction() == VideoGroup.ACTION_REMOVE) {
+            if (action == VideoGroup.ACTION_REMOVE) {
                 updateGroup1(group);
                 return;
             }
@@ -168,6 +173,11 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
         if (browseGrid != null) {
             // Don't remove padding at all. This could cause weird card zooming.
             browseGrid.setPadding(browseGrid.getPaddingLeft() / 3, browseGrid.getPaddingTop(), browseGrid.getPaddingRight(), browseGrid.getPaddingBottom());
+            browseGrid.setOnFocusChangeListener((v, hasFocus) -> {
+                if (hasFocus) {
+                    v.post(this::markSelectedChannelVideoAsSeen);
+                }
+            });
         }
     }
 
@@ -254,6 +264,12 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
         if (action == VideoGroup.ACTION_REPLACE) {
             clear1();
             clear2();
+        } else if (action == VideoGroup.ACTION_REPLACE_NO_CLEAR) {
+            mSelectedItem1 = getTopVisibleVideo1(true);
+            if (mSelectedItem1 == null) {
+                mSelectedItem1 = getSelectedVideo1();
+            }
+            mGridAdapter1.clear();
         } else if (action == VideoGroup.ACTION_REMOVE) {
             mGridAdapter1.remove(group);
             return;
@@ -393,6 +409,116 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
         return MainUIData.instance(getContext());
     }
 
+    private Video getSelectedVideo1() {
+        if (mGridAdapter1 == null) {
+            return null;
+        }
+
+        int position = getSelectedPosition1();
+
+        if (position < 0 || position >= mGridAdapter1.size()) {
+            return null;
+        }
+
+        Object item = mGridAdapter1.get(position);
+
+        return item instanceof Video ? (Video) item : null;
+    }
+
+    private Video getTopVisibleVideo1(boolean newContentOnly) {
+        VerticalGridView browseGrid = getBrowseGrid1();
+
+        if (browseGrid == null || mGridAdapter1 == null) {
+            return null;
+        }
+
+        for (int position = 0; position < mGridAdapter1.size(); position++) {
+            if (browseGrid.findViewHolderForAdapterPosition(position) == null) {
+                continue;
+            }
+
+            Object item = mGridAdapter1.get(position);
+
+            if (item instanceof Video && (!newContentOnly || isNewContentChannel((Video) item))) {
+                return (Video) item;
+            }
+        }
+
+        return null;
+    }
+
+    private boolean isNewContentChannel(Video item) {
+        return item.hasNewContent ||
+                item.channelNewContentState == Video.CHANNEL_NEW_CONTENT_UNVERIFIED ||
+                item.channelNewContentState == Video.CHANNEL_NEW_CONTENT_VERIFIED;
+    }
+
+    private boolean isItemFocused(Presenter.ViewHolder itemViewHolder) {
+        return itemViewHolder != null && itemViewHolder.view != null &&
+                (itemViewHolder.view.isFocused() || itemViewHolder.view.findFocus() != null);
+    }
+
+    @Override
+    protected void onGrid1Selected() {
+        if (getBrowseGrid1() != null) {
+            getBrowseGrid1().post(this::markSelectedChannelAsFocused);
+        }
+    }
+
+    @Override
+    protected void onGrid2Selected() {
+        if (getBrowseGrid2() != null) {
+            getBrowseGrid2().post(this::markSelectedChannelVideoAsSeen);
+        }
+    }
+
+    private void markSelectedChannelAsFocused() {
+        if (!(mMainPresenter instanceof BrowsePresenter) || mGridAdapter1 == null) {
+            return;
+        }
+
+        int position = getSelectedPosition1();
+
+        if ((position < 0 || position >= mGridAdapter1.size()) && getBrowseGrid1() != null) {
+            position = getBrowseGrid1().getSelectedPosition();
+        }
+
+        if (position >= 0 && position < mGridAdapter1.size()) {
+            Object item = mGridAdapter1.get(position);
+
+            if (item instanceof Video) {
+                ((BrowsePresenter) mMainPresenter).onChannelItemFocused((Video) item);
+            }
+        }
+    }
+
+    private void markSelectedChannelVideoAsSeen() {
+        if (!(mMainPresenter instanceof BrowsePresenter) || mGridAdapter2 == null) {
+            return;
+        }
+
+        Video selectedItem = null;
+        int position = getSelectedPosition2();
+
+        if ((position < 0 || position >= mGridAdapter2.size()) && getBrowseGrid2() != null) {
+            position = getBrowseGrid2().getSelectedPosition();
+        }
+
+        if (position >= 0 && position < mGridAdapter2.size()) {
+            Object item = mGridAdapter2.get(position);
+
+            if (item instanceof Video) {
+                selectedItem = (Video) item;
+            }
+        } else if (mSelectedItem2 != null && mGridAdapter2.indexOf(mSelectedItem2) != -1) {
+            selectedItem = mSelectedItem2;
+        }
+
+        if (selectedItem != null) {
+            ((BrowsePresenter) mMainPresenter).onChannelVideoItemSelected(selectedItem);
+        }
+    }
+
     private final class ItemViewLongPressedListener implements OnItemLongPressedListener {
         @Override
         public void onItemLongPressed(Presenter.ViewHolder itemViewHolder, Object item) {
@@ -410,6 +536,12 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
                                   RowPresenter.ViewHolder rowViewHolder, Row row) {
 
             if (item instanceof Video) {
+                mSelectedItem2 = (Video) item;
+
+                if (mMainPresenter instanceof BrowsePresenter) {
+                    ((BrowsePresenter) mMainPresenter).onChannelVideoItemSelected((Video) item);
+                }
+
                 mMainPresenter.onVideoItemClicked((Video) item);
             } else {
                 Toast.makeText(getActivity(), item.toString(), Toast.LENGTH_SHORT).show();
@@ -434,6 +566,10 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
             if (item instanceof Video) {
                 mMainPresenter.onVideoItemSelected((Video) item);
 
+                if (isItemFocused(itemViewHolder) && mMainPresenter instanceof BrowsePresenter) {
+                    ((BrowsePresenter) mMainPresenter).onChannelItemFocused((Video) item);
+                }
+
                 // Not working: Exception: Cannot call this method while RecyclerView is computing a layout
                 // Change unwatched state (remove red mark).
                 // Possible this isn't what you want. Red mark improve navigation inside the channel list.
@@ -448,10 +584,28 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
         public void onItemSelected(Presenter.ViewHolder itemViewHolder, Object item,
                                    RowPresenter.ViewHolder rowViewHolder, Row row) {
             if (item instanceof Video) {
+                mSelectedItem2 = (Video) item;
                 mBackgroundManager.setBackgroundFrom((Video) item);
+
+                if (mMainPresenter instanceof BrowsePresenter) {
+                    if (isVideoItemFocused(itemViewHolder)) {
+                        ((BrowsePresenter) mMainPresenter).onChannelVideoItemSelected((Video) item);
+                    } else if (itemViewHolder != null && itemViewHolder.view != null) {
+                        itemViewHolder.view.post(() -> {
+                            if (isVideoItemFocused(itemViewHolder)) {
+                                ((BrowsePresenter) mMainPresenter).onChannelVideoItemSelected((Video) item);
+                            }
+                        });
+                    }
+                }
 
                 checkScrollEnd((Video) item);
             }
+        }
+
+        private boolean isVideoItemFocused(Presenter.ViewHolder itemViewHolder) {
+            return isItemFocused(itemViewHolder) ||
+                    getBrowseGrid2() != null && getBrowseGrid2().hasFocus();
         }
 
         private void checkScrollEnd(Video item) {
@@ -460,7 +614,8 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
             int size = adapter.size();
             int index = adapter.indexOf(item);
 
-            if (index > (size - ViewUtil.GRID_SCROLL_CONTINUE_NUM)) {
+            if (size > ViewUtil.GRID_SCROLL_CONTINUE_NUM &&
+                    index > (size - ViewUtil.GRID_SCROLL_CONTINUE_NUM)) {
                 mMainPresenter.onScrollEnd((Video) adapter.get(size - 1));
             }
         }

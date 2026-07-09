@@ -307,11 +307,20 @@ public class AppDialogFragment extends LeanbackSettingsFragment implements AppDi
             // Note, place in field with different name to avoid field overlapping
             mExtractedContext = (Context) Helpers.getField(this, "mStyledContext");
             // Note, don't use external manager (probable focus lost and visual bugs)
-            mManager = new AppPreferenceManager(mExtractedContext);
+            mManager = new AppPreferenceManager(mExtractedContext, this::initPrefs);
 
             initPrefs();
 
             Log.d(TAG, "onCreatePreferences");
+        }
+
+        @Override
+        public void onResume() {
+            super.onResume();
+
+            if (mExtractedContext != null && mCategories != null) {
+                initPrefs();
+            }
         }
 
         @Override
