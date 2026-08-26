@@ -27,6 +27,10 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
     public static final int CHANNEL_SORTING_DEFAULT = 2;
     public static final int CHANNEL_SORTING_LAST_VIEWED = 3;
     public static final int CHANNEL_SORTING_NAME2 = 4;
+    public static final int CHANNEL_NEW_CONTENT_MARK_SEEN_ON_VIDEO = 0;
+    public static final int CHANNEL_NEW_CONTENT_MARK_SEEN_ON_CHANNEL = 1;
+    public static final int CHANNEL_NEW_CONTENT_EYE_NEVER = 0;
+    public static final int CHANNEL_NEW_CONTENT_EYE_WHILE_HIGHLIGHTED = -1;
     public static final int PLAYLISTS_STYLE_GRID = 0;
     public static final int PLAYLISTS_STYLE_ROWS = 1;
     public static final long MENU_ITEM_RECENT_PLAYLIST = 1;
@@ -118,6 +122,10 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
     private final Runnable mPersistStateInt = this::persistStateInt;
     private boolean mIsUnlocalizedTitlesEnabled;
     private long mUiTweaks;
+    private boolean mIsChannelNewContentVerificationEnabled;
+    private int mChannelNewContentMarkSeenMode;
+    private int mChannelNewContentHighlightDelaySec;
+    private int mChannelNewContentEyeIndicator;
 
     private MainUIData(Context context) {
         mContext = context;
@@ -274,6 +282,42 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
 
     public void setUploadsAutoLoadEnabled(boolean enable) {
         mIsUploadsAutoLoadEnabled = enable;
+        persistState();
+    }
+
+    public boolean isChannelNewContentVerificationEnabled() {
+        return mIsChannelNewContentVerificationEnabled;
+    }
+
+    public void setChannelNewContentVerificationEnabled(boolean enable) {
+        mIsChannelNewContentVerificationEnabled = enable;
+        persistState();
+    }
+
+    public int getChannelNewContentMarkSeenMode() {
+        return mChannelNewContentMarkSeenMode;
+    }
+
+    public void setChannelNewContentMarkSeenMode(int mode) {
+        mChannelNewContentMarkSeenMode = mode;
+        persistState();
+    }
+
+    public int getChannelNewContentHighlightDelaySec() {
+        return mChannelNewContentHighlightDelaySec;
+    }
+
+    public void setChannelNewContentHighlightDelaySec(int delaySec) {
+        mChannelNewContentHighlightDelaySec = delaySec;
+        persistState();
+    }
+
+    public int getChannelNewContentEyeIndicator() {
+        return mChannelNewContentEyeIndicator;
+    }
+
+    public void setChannelNewContentEyeIndicator(int indicator) {
+        mChannelNewContentEyeIndicator = indicator;
         persistState();
     }
 
@@ -452,6 +496,10 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
         mCardPreviewType = Helpers.parseInt(split, 21, CARD_PREVIEW_DISABLED);
         mIsUnlocalizedTitlesEnabled = Helpers.parseBoolean(split, 22, false);
         mUiTweaks = Helpers.parseLong(split, 23, UI_TWEAK_DEFAULT);
+        mIsChannelNewContentVerificationEnabled = Helpers.parseBoolean(split, 24, false);
+        mChannelNewContentMarkSeenMode = Helpers.parseInt(split, 25, CHANNEL_NEW_CONTENT_MARK_SEEN_ON_VIDEO);
+        mChannelNewContentHighlightDelaySec = Helpers.parseInt(split, 26, 3);
+        mChannelNewContentEyeIndicator = Helpers.parseInt(split, 27, CHANNEL_NEW_CONTENT_EYE_NEVER);
 
         int idx = -1;
         for (Long menuItem : MENU_ITEM_DEFAULT_ORDER) {
@@ -484,7 +532,8 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
     }
 
     public void persistNow() {
-        Utils.post(mPersistStateInt);
+        Utils.removeCallbacks(mPersistStateInt);
+        persistStateInt();
     }
 
     private void persistState() {
@@ -499,7 +548,8 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
                 mIsUploadsOldLookEnabled, mIsUploadsAutoLoadEnabled, mCardTextScrollSpeed, mMenuItems, mTopButtons,
                 null, mThumbQuality, mIsCardMultilineSubtitleEnabled, Helpers.mergeList(mMenuItemsOrdered),
                 mIsChannelsFilterEnabled, mIsChannelSearchBarEnabled, mIsPinnedChannelRowsEnabled, mCardPreviewType,
-                mIsUnlocalizedTitlesEnabled, mUiTweaks));
+                mIsUnlocalizedTitlesEnabled, mUiTweaks, mIsChannelNewContentVerificationEnabled,
+                mChannelNewContentMarkSeenMode, mChannelNewContentHighlightDelaySec, mChannelNewContentEyeIndicator));
     }
 
     public static class ColorScheme {
@@ -533,6 +583,25 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
 
         if (mChannelCategorySorting == CHANNEL_SORTING_DEFAULT) {
             mChannelCategorySorting = CHANNEL_SORTING_LAST_VIEWED;
+        }
+
+        if (mChannelNewContentMarkSeenMode != CHANNEL_NEW_CONTENT_MARK_SEEN_ON_VIDEO &&
+                mChannelNewContentMarkSeenMode != CHANNEL_NEW_CONTENT_MARK_SEEN_ON_CHANNEL) {
+            mChannelNewContentMarkSeenMode = CHANNEL_NEW_CONTENT_MARK_SEEN_ON_VIDEO;
+        }
+
+        if (mChannelNewContentHighlightDelaySec != 2 && mChannelNewContentHighlightDelaySec != 3 &&
+                mChannelNewContentHighlightDelaySec != 5 && mChannelNewContentHighlightDelaySec != 10 &&
+                mChannelNewContentHighlightDelaySec != 20 && mChannelNewContentHighlightDelaySec != 30) {
+            mChannelNewContentHighlightDelaySec = 3;
+        }
+
+        if (mChannelNewContentEyeIndicator != CHANNEL_NEW_CONTENT_EYE_NEVER &&
+                mChannelNewContentEyeIndicator != CHANNEL_NEW_CONTENT_EYE_WHILE_HIGHLIGHTED &&
+                mChannelNewContentEyeIndicator != 1 && mChannelNewContentEyeIndicator != 2 &&
+                mChannelNewContentEyeIndicator != 3 && mChannelNewContentEyeIndicator != 5 &&
+                mChannelNewContentEyeIndicator != 10) {
+            mChannelNewContentEyeIndicator = CHANNEL_NEW_CONTENT_EYE_NEVER;
         }
     }
 

@@ -182,6 +182,8 @@ public class BackupAndRestoreManager implements MotherActivity.OnPermissions {
     }
 
     public void backupToDir(File target) {
+        Utils.persistData(mContext);
+
         if (target.isDirectory()) { // plain sdcard storage
             // remove old backup <app_id>/Backup
             FileHelpers.delete(target);

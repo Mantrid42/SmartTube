@@ -4,6 +4,8 @@
              xmlns:tools="http://schemas.android.com/tools"
              android:focusableInTouchMode="true"
              android:focusable="true"
+             android:clipChildren="false"
+             android:clipToPadding="false"
              android:layout_width="wrap_content"
              android:layout_height="wrap_content">
     <LinearLayout
@@ -11,15 +13,34 @@
                   android:orientation="horizontal"
                   android:layout_width="@dimen/channel_card_width"
                   android:layout_height="wrap_content">
-        <ImageView
-            android:id="@+id/channel_image"
-            android:adjustViewBounds="true"
-            android:scaleType="fitCenter"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_gravity="start"
-            android:visibility="invisible"
-            tools:ignore="ContentDescription"/>
+        <FrameLayout
+            android:layout_width="@dimen/channel_card_height"
+            android:layout_height="@dimen/channel_card_height"
+            android:layout_gravity="start|center_vertical">
+            <ImageView
+                android:id="@+id/channel_image"
+                android:adjustViewBounds="true"
+                android:scaleType="fitCenter"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="invisible"
+                tools:ignore="ContentDescription"/>
+            <ProgressBar
+                android:id="@+id/channel_progress"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:visibility="gone"/>
+            <ImageView
+                android:id="@+id/channel_seen_indicator"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_channel_seen"
+                android:visibility="gone"
+                tools:ignore="ContentDescription"/>
+        </FrameLayout>
         <com.liskovsoft.smartyoutubetv2.tv.ui.widgets.marqueetextviewcompat.MarqueeTextViewCompat
             android:id="@+id/channel_title"
             android:singleLine="true"

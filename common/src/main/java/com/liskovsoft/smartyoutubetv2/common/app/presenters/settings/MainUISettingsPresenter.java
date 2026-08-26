@@ -5,6 +5,8 @@ import android.os.Build;
 import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.smartyoutubetv2.common.R;
+import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.ChatReceiver;
+import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.CommentsReceiver;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.OptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
@@ -58,6 +60,7 @@ public class MainUISettingsPresenter extends BasePresenter<Void> {
         appendThumbSource(settingsPresenter);
         //appendCardTitleLines(settingsPresenter);
         appendChannelSortingCategory(settingsPresenter);
+        appendChannelNewContentCategory(settingsPresenter);
         //appendPlaylistsCategoryStyle(settingsPresenter);
         appendScaleUI(settingsPresenter);
         if (Build.VERSION.SDK_INT > 19) {
@@ -205,6 +208,181 @@ public class MainUISettingsPresenter extends BasePresenter<Void> {
         }
 
         settingsPresenter.appendRadioCategory(getContext().getString(R.string.channels_section_sorting), options);
+    }
+
+    private void appendChannelNewContentCategory(AppDialogPresenter settingsPresenter) {
+        settingsPresenter.appendSingleButton(UiOptionItem.from(
+                getContext().getString(R.string.local_unseen_list),
+                optionItem -> showChannelNewContentSettings()));
+    }
+
+    private void showChannelNewContentSettings() {
+        AppDialogPresenter settingsPresenter = AppDialogPresenter.instance(getContext());
+        OptionItem verifyOption = createChannelNewContentVerificationOption();
+        OptionItem channelHighlighted = createChannelNewContentChannelHighlightedOption();
+        OptionItem markSeenOption = UiOptionItem.from(
+                getContext().getString(R.string.channel_new_content_mark_channel_as_seen),
+                optionItem -> showChannelNewContentMarkSeenSettings());
+        OptionItem delayOption = UiOptionItem.from(
+                getContext().getString(R.string.channel_new_content_highlight_delay),
+                optionItem -> showChannelNewContentHighlightDelaySettings());
+        OptionItem eyeOption = UiOptionItem.from(
+                getContext().getString(R.string.channel_new_content_show_eye_indicator),
+                optionItem -> showChannelNewContentEyeIndicatorSettings());
+
+        markSeenOption.setRequired(verifyOption);
+        delayOption.setRequired(verifyOption, channelHighlighted);
+        eyeOption.setRequired(verifyOption, channelHighlighted);
+
+        settingsPresenter.appendSingleSwitch(verifyOption);
+        settingsPresenter.appendSingleButton(markSeenOption);
+        settingsPresenter.appendSingleButton(delayOption);
+        settingsPresenter.appendSingleButton(eyeOption);
+        settingsPresenter.showDialog(getContext().getString(R.string.local_unseen_list));
+    }
+
+    private OptionItem createChannelNewContentVerificationOption() {
+        return UiOptionItem.from(getContext().getString(R.string.channel_new_content_verification),
+                optionItem -> mMainUIData.setChannelNewContentVerificationEnabled(optionItem.isSelected()),
+                mMainUIData.isChannelNewContentVerificationEnabled());
+    }
+
+    private OptionItem createChannelNewContentChannelHighlightedOption() {
+        return new OptionItem() {
+            @Override
+            public int getId() {
+                return 0;
+            }
+
+            @Override
+            public CharSequence getTitle() {
+                return getContext().getString(R.string.channel_new_content_when_channel_highlighted);
+            }
+
+            @Override
+            public CharSequence getDescription() {
+                return null;
+            }
+
+            @Override
+            public boolean isSelected() {
+                return mMainUIData.getChannelNewContentMarkSeenMode() == MainUIData.CHANNEL_NEW_CONTENT_MARK_SEEN_ON_CHANNEL;
+            }
+
+            @Override
+            public void onSelect(boolean isSelected) {
+            }
+
+            @Override
+            public Object getData() {
+                return null;
+            }
+
+            @Override
+            public void setRequired(OptionItem... items) {
+            }
+
+            @Override
+            public OptionItem[] getRequired() {
+                return null;
+            }
+
+            @Override
+            public void setRadio(OptionItem... items) {
+            }
+
+            @Override
+            public OptionItem[] getRadio() {
+                return null;
+            }
+
+            @Override
+            public ChatReceiver getChatReceiver() {
+                return null;
+            }
+
+            @Override
+            public CommentsReceiver getCommentsReceiver() {
+                return null;
+            }
+        };
+    }
+
+    private void showChannelNewContentMarkSeenSettings() {
+        AppDialogPresenter settingsPresenter = AppDialogPresenter.instance(getContext());
+        List<OptionItem> options = new ArrayList<>();
+
+        for (int[] pair : new int[][] {
+                {R.string.channel_new_content_when_any_video_highlighted, MainUIData.CHANNEL_NEW_CONTENT_MARK_SEEN_ON_VIDEO},
+                {R.string.channel_new_content_when_channel_highlighted, MainUIData.CHANNEL_NEW_CONTENT_MARK_SEEN_ON_CHANNEL}}) {
+            options.add(UiOptionItem.from(getContext().getString(pair[0]), optionItem -> {
+                if (mMainUIData.isChannelNewContentVerificationEnabled()) {
+                    mMainUIData.setChannelNewContentMarkSeenMode(pair[1]);
+                }
+            }, mMainUIData.getChannelNewContentMarkSeenMode() == pair[1]));
+        }
+
+        settingsPresenter.appendRadioCategory(getContext().getString(R.string.channel_new_content_mark_channel_as_seen), options);
+        settingsPresenter.showDialog(getContext().getString(R.string.channel_new_content_mark_channel_as_seen));
+    }
+
+    private void showChannelNewContentHighlightDelaySettings() {
+        AppDialogPresenter settingsPresenter = AppDialogPresenter.instance(getContext());
+        List<OptionItem> options = new ArrayList<>();
+
+        for (int delaySec : new int[] {2, 3, 5, 10, 20, 30}) {
+            options.add(UiOptionItem.from(formatSeconds(delaySec), optionItem -> {
+                if (mMainUIData.isChannelNewContentVerificationEnabled() &&
+                        mMainUIData.getChannelNewContentMarkSeenMode() == MainUIData.CHANNEL_NEW_CONTENT_MARK_SEEN_ON_CHANNEL) {
+                    mMainUIData.setChannelNewContentHighlightDelaySec(delaySec);
+                }
+            }, mMainUIData.getChannelNewContentHighlightDelaySec() == delaySec));
+        }
+
+        settingsPresenter.appendRadioCategory(getContext().getString(R.string.channel_new_content_highlight_delay), options);
+        settingsPresenter.showDialog(getContext().getString(R.string.channel_new_content_highlight_delay));
+    }
+
+    private void showChannelNewContentEyeIndicatorSettings() {
+        AppDialogPresenter settingsPresenter = AppDialogPresenter.instance(getContext());
+        List<OptionItem> options = new ArrayList<>();
+
+        options.add(UiOptionItem.from(getContext().getString(R.string.option_never), optionItem -> {
+            if (isChannelNewContentChannelHighlightEnabled()) {
+                mMainUIData.setChannelNewContentEyeIndicator(MainUIData.CHANNEL_NEW_CONTENT_EYE_NEVER);
+            }
+        }, mMainUIData.getChannelNewContentEyeIndicator() == MainUIData.CHANNEL_NEW_CONTENT_EYE_NEVER));
+
+        for (int seconds : new int[] {1, 2, 3, 5, 10}) {
+            options.add(UiOptionItem.from(
+                    getContext().getString(R.string.channel_new_content_eye_for_seconds, formatSeconds(seconds)),
+                    optionItem -> {
+                        if (isChannelNewContentChannelHighlightEnabled()) {
+                            mMainUIData.setChannelNewContentEyeIndicator(seconds);
+                        }
+                    },
+                    mMainUIData.getChannelNewContentEyeIndicator() == seconds));
+        }
+
+        options.add(UiOptionItem.from(getContext().getString(R.string.channel_new_content_eye_while_highlighted),
+                optionItem -> {
+                    if (isChannelNewContentChannelHighlightEnabled()) {
+                        mMainUIData.setChannelNewContentEyeIndicator(MainUIData.CHANNEL_NEW_CONTENT_EYE_WHILE_HIGHLIGHTED);
+                    }
+                },
+                mMainUIData.getChannelNewContentEyeIndicator() == MainUIData.CHANNEL_NEW_CONTENT_EYE_WHILE_HIGHLIGHTED));
+
+        settingsPresenter.appendRadioCategory(getContext().getString(R.string.channel_new_content_show_eye_indicator), options);
+        settingsPresenter.showDialog(getContext().getString(R.string.channel_new_content_show_eye_indicator));
+    }
+
+    private boolean isChannelNewContentChannelHighlightEnabled() {
+        return mMainUIData.isChannelNewContentVerificationEnabled() &&
+                mMainUIData.getChannelNewContentMarkSeenMode() == MainUIData.CHANNEL_NEW_CONTENT_MARK_SEEN_ON_CHANNEL;
+    }
+
+    private String formatSeconds(int seconds) {
+        return getContext().getResources().getQuantityString(R.plurals.seconds, seconds, seconds);
     }
 
     private void appendPlaylistsCategoryStyle(AppDialogPresenter settingsPresenter) {

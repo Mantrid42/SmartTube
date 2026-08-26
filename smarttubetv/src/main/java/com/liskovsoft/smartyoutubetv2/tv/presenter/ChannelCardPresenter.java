@@ -32,6 +32,8 @@ public class ChannelCardPresenter extends LongClickPresenter {
     private int mDefaultTextColor;
     private int mSelectedBackgroundColor;
     private int mNewContentBackgroundColor;
+    private int mNewContentPendingBackgroundColor;
+    private int mNewContentThisRefreshBackgroundColor;
     private int mSelectedTextColor;
     private int mWidth;
     private int mHeight;
@@ -46,6 +48,10 @@ public class ChannelCardPresenter extends LongClickPresenter {
                 ContextCompat.getColor(context, R.color.card_default_text);
         mNewContentBackgroundColor =
                 ContextCompat.getColor(context, R.color.dark_red);
+        mNewContentPendingBackgroundColor =
+                ContextCompat.getColor(context, R.color.light_grey2);
+        mNewContentThisRefreshBackgroundColor =
+                ContextCompat.getColor(context, R.color.search_opaque_yellow);
         mSelectedBackgroundColor =
                 ContextCompat.getColor(context, Helpers.getThemeAttr(context, R.attr.cardSelectedBackground));
         mSelectedTextColor =
@@ -63,6 +69,7 @@ public class ChannelCardPresenter extends LongClickPresenter {
         TextView textView = container.findViewById(R.id.channel_title);
         textView.setBackgroundColor(mDefaultBackgroundColor);
         textView.setTextColor(mDefaultTextColor);
+        container.findViewById(R.id.channel_card_wrapper).setBackgroundColor(mDefaultBackgroundColor);
 
         boolean autoScrollEnabled = isCardTextAutoScrollEnabled(context);
         if (autoScrollEnabled) {
@@ -70,12 +77,15 @@ public class ChannelCardPresenter extends LongClickPresenter {
         }
 
         container.setOnFocusChangeListener((v, hasFocus) -> {
-            int backgroundColor = hasFocus ? mSelectedBackgroundColor :
-                    textView.getTag(R.id.channel_new_content) != null ? mNewContentBackgroundColor : mDefaultBackgroundColor;
-            int textColor = hasFocus ? mSelectedTextColor : mDefaultTextColor;
-            
+            int cardBackgroundColor = getBackgroundColor(textView);
+            int backgroundColor = hasFocus ? mSelectedBackgroundColor : cardBackgroundColor;
+            int textColor = hasFocus ? mSelectedTextColor : getTextColor(textView);
+
+            container.setBackgroundColor(backgroundColor);
+            container.findViewById(R.id.channel_card_wrapper).setBackgroundColor(backgroundColor);
             textView.setBackgroundColor(backgroundColor);
             textView.setTextColor(textColor);
+            updateSeenIndicator(container.findViewById(R.id.channel_seen_indicator), hasFocus);
 
             if (!autoScrollEnabled) {
                 return;
@@ -104,19 +114,33 @@ public class ChannelCardPresenter extends LongClickPresenter {
         textView.setText(video.getTitle());
 
         // We should setup props each time because object may be reused by the underlying RecyclerView
-        textView.setBackgroundColor(video.hasNewContent ? mNewContentBackgroundColor : mDefaultBackgroundColor);
-        textView.setTag(R.id.channel_new_content, video.hasNewContent ? true : null);
+        int backgroundColor = getBackgroundColor(video);
+        int textColor = getTextColor(video);
+        int displayBackgroundColor = viewHolder.view.hasFocus() ? mSelectedBackgroundColor : backgroundColor;
+        viewHolder.view.setBackgroundColor(displayBackgroundColor);
+        viewHolder.view.findViewById(R.id.channel_card_wrapper).setBackgroundColor(displayBackgroundColor);
+        textView.setBackgroundColor(displayBackgroundColor);
+        textView.setTextColor(viewHolder.view.hasFocus() ? mSelectedTextColor : textColor);
+        textView.setTag(R.id.channel_new_content, backgroundColor != mDefaultBackgroundColor ? backgroundColor : null);
+        textView.setTag(R.id.channel_new_content_text, textColor != mDefaultTextColor ? textColor : null);
 
+        View progress = viewHolder.view.findViewById(R.id.channel_progress);
+        progress.setVisibility(video.channelNewContentLoading ? View.VISIBLE : View.GONE);
+
+        updateSeenIndicator(viewHolder.view.findViewById(R.id.channel_seen_indicator), video, viewHolder.view.hasFocus());
 
         ImageView imageView = viewHolder.view.findViewById(R.id.channel_image);
         imageView.setVisibility(View.VISIBLE);
 
-        Glide.with(context)
-                .load(video.cardImageUrl)
-                .apply(ViewUtil.glideOptions())
-                .listener(mErrorListener)
-                //.error(R.drawable.card_placeholder) // R.color.lb_grey
-                .into(imageView);
+        if (!Helpers.equals(imageView.getTag(R.id.channel_image_url), video.cardImageUrl) || imageView.getDrawable() == null) {
+            imageView.setTag(R.id.channel_image_url, video.cardImageUrl);
+            Glide.with(context)
+                    .load(video.cardImageUrl)
+                    .apply(ViewUtil.glideOptions())
+                    .listener(mErrorListener)
+                    //.error(R.drawable.card_placeholder) // R.color.lb_grey
+                    .into(imageView);
+        }
     }
 
     @Override
@@ -147,6 +171,71 @@ public class ChannelCardPresenter extends LongClickPresenter {
 
     protected float getCardTextScrollSpeed(Context context) {
         return MainUIData.instance(context).getCardTextScrollSpeed();
+    }
+
+    private int getBackgroundColor(TextView textView) {
+        Object color = textView.getTag(R.id.channel_new_content);
+
+        return color instanceof Integer ? (Integer) color : mDefaultBackgroundColor;
+    }
+
+    private int getTextColor(TextView textView) {
+        Object color = textView.getTag(R.id.channel_new_content_text);
+
+        return color instanceof Integer ? (Integer) color : mDefaultTextColor;
+    }
+
+    private int getBackgroundColor(Video video) {
+        switch (video.channelNewContentState) {
+            case Video.CHANNEL_NEW_CONTENT_UNVERIFIED:
+                return mNewContentPendingBackgroundColor;
+            case Video.CHANNEL_NEW_CONTENT_VERIFIED:
+                return mNewContentBackgroundColor;
+            case Video.CHANNEL_NEW_CONTENT_VERIFIED_THIS_REFRESH:
+                return mNewContentThisRefreshBackgroundColor;
+            default:
+                return video.hasNewContent ? mNewContentBackgroundColor : mDefaultBackgroundColor;
+        }
+    }
+
+    private int getTextColor(Video video) {
+        return video.channelNewContentState == Video.CHANNEL_NEW_CONTENT_VERIFIED_THIS_REFRESH ?
+                mSelectedTextColor : mDefaultTextColor;
+    }
+
+    private void updateSeenIndicator(View indicator, Video video, boolean hasFocus) {
+        boolean isWatched = video.channelNewContentState == Video.CHANNEL_NEW_CONTENT_WATCHED;
+        long seenTimeMs = isWatched ? video.channelNewContentSeenTimeMs : 0;
+
+        indicator.setTag(R.id.channel_new_content_seen, isWatched ? seenTimeMs : null);
+        updateSeenIndicator(indicator, hasFocus);
+    }
+
+    private void updateSeenIndicator(View indicator, boolean hasFocus) {
+        Object tag = indicator.getTag(R.id.channel_new_content_seen);
+        long seenTimeMs = tag instanceof Long ? (Long) tag : 0;
+        boolean isWatched = tag instanceof Long;
+        int mode = MainUIData.instance(indicator.getContext()).getChannelNewContentEyeIndicator();
+        boolean show = false;
+
+        if (mode == MainUIData.CHANNEL_NEW_CONTENT_EYE_WHILE_HIGHLIGHTED) {
+            show = hasFocus && isWatched;
+        } else if (mode > 0 && seenTimeMs != 0) {
+            long remainingMs = mode * 1_000L - (System.currentTimeMillis() - seenTimeMs);
+
+            if (remainingMs > 0) {
+                show = true;
+                indicator.postDelayed(() -> {
+                    Object currentTag = indicator.getTag(R.id.channel_new_content_seen);
+
+                    if (currentTag instanceof Long && (Long) currentTag == seenTimeMs) {
+                        indicator.setVisibility(View.GONE);
+                    }
+                }, remainingMs);
+            }
+        }
+
+        indicator.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
     private final RequestListener<Drawable> mErrorListener = new RequestListener<Drawable>() {

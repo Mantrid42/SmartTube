@@ -13,6 +13,7 @@ import com.liskovsoft.smartyoutubetv2.common.prefs.BlockedChannelData;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.ConcurrentModificationException;
+import java.util.Comparator;
 import java.util.List;
 
 public class VideoGroup {
@@ -31,6 +32,10 @@ public class VideoGroup {
      * Add at the begin of the existing group
      */
     public static final int ACTION_PREPEND = 5;
+    /**
+     * Replace first grid only, keeping dependent grid content as-is
+     */
+    public static final int ACTION_REPLACE_NO_CLEAR = 6;
     private static final String TAG = VideoGroup.class.getSimpleName();
     private int mId;
     private String mTitle;
@@ -383,6 +388,14 @@ public class VideoGroup {
         }
 
         mVideos.clear();
+    }
+
+    public void sort(Comparator<Video> comparator) {
+        if (mVideos == null || comparator == null) {
+            return;
+        }
+
+        Collections.sort(mVideos, comparator);
     }
 
     public boolean contains(Video video) {

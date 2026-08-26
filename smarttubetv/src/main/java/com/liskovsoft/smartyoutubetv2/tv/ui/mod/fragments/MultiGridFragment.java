@@ -315,8 +315,10 @@ public class MultiGridFragment extends Fragment implements BrowseSupportFragment
                 // (OnItemSelectedListener doesn't help in this case)
                 if (position == 0) {
                     showOrHideTitle1();
+                    onGrid1Selected();
                 } else if (position == 1) {
                     showOrHideTitle2();
+                    onGrid2Selected();
                 }
             }
         });
@@ -427,6 +429,14 @@ public class MultiGridFragment extends Fragment implements BrowseSupportFragment
         public int getItemCount() {
             return 2;
         }
+    }
+
+    protected void onGrid1Selected() {
+
+    }
+
+    protected void onGrid2Selected() {
+
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {

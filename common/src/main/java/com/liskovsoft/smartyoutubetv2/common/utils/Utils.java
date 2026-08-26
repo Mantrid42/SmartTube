@@ -86,6 +86,7 @@ import com.liskovsoft.smartyoutubetv2.common.misc.RemoteControlService;
 import com.liskovsoft.smartyoutubetv2.common.misc.RemoteControlWorker;
 import com.liskovsoft.smartyoutubetv2.common.misc.ScreensaverManager;
 import com.liskovsoft.smartyoutubetv2.common.prefs.BlockedChannelData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelNewContentData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.HiddenPrefs;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
@@ -1339,11 +1340,12 @@ public class Utils {
         });
     }
 
-    private static void persistData(Context context) {
+    public static void persistData(Context context) {
         VideoStateService.instance(context).persistNow();
         PlayerData.instance(context).persistNow();
         PlayerTweaksData.instance(context).persistNow();
         MainUIData.instance(context).persistNow();
+        ChannelNewContentData.instance(context).persistNow();
         GeneralData.instance(context).persistNow();
         MediaServiceData mediaServiceData = MediaServiceData.instance();
         mediaServiceData.persistNow();

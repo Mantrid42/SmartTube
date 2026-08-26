@@ -4,6 +4,7 @@ import android.app.Fragment;
 import android.app.FragmentTransaction;
 import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -301,17 +302,25 @@ public class AppDialogFragment extends LeanbackSettingsFragment implements AppDi
         private AppPreferenceManager mManager;
         private CharSequence mTitle;
         private boolean mIsTransparent;
+        private final Runnable mRefreshPrefs = this::refreshPrefs;
 
         @Override
         public void onCreatePreferences(Bundle bundle, String s) {
             // Note, place in field with different name to avoid field overlapping
             mExtractedContext = (Context) Helpers.getField(this, "mStyledContext");
             // Note, don't use external manager (probable focus lost and visual bugs)
-            mManager = new AppPreferenceManager(mExtractedContext);
+            mManager = new AppPreferenceManager(mExtractedContext, mRefreshPrefs);
 
             initPrefs();
 
             Log.d(TAG, "onCreatePreferences");
+        }
+
+        @Override
+        public void onResume() {
+            super.onResume();
+
+            refreshPrefs();
         }
 
         @Override
@@ -326,6 +335,35 @@ public class AppDialogFragment extends LeanbackSettingsFragment implements AppDi
             }
 
             return view;
+        }
+
+        @Override
+        public void onDestroyView() {
+            Utils.removeCallbacks(mRefreshPrefs);
+            clearPendingPreferenceBinds();
+            super.onDestroyView();
+        }
+
+        private void refreshPrefs() {
+            if (!canRefreshPrefs()) {
+                return;
+            }
+
+            clearPendingPreferenceBinds();
+            initPrefs();
+        }
+
+        private boolean canRefreshPrefs() {
+            return isAdded() && getActivity() != null && getView() != null && getListView() != null &&
+                    mExtractedContext != null && mCategories != null;
+        }
+
+        private void clearPendingPreferenceBinds() {
+            Object handler = Helpers.getField(this, "mHandler");
+
+            if (handler instanceof Handler) {
+                ((Handler) handler).removeCallbacksAndMessages(null);
+            }
         }
 
         private void initPrefs() {

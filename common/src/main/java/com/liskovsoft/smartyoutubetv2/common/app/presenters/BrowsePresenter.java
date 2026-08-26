@@ -42,6 +42,7 @@ import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager.AccountChangeListener;
 import com.liskovsoft.smartyoutubetv2.common.prefs.AccountsData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.BlockedChannelData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelNewContentData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 
@@ -70,12 +71,19 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     private final AppDataSourceManager mDataSourcePresenter;
     private final BrowseProcessorManager mBrowseProcessor;
     private final List<Disposable> mActions;
+    private final List<Disposable> mChannelNewContentActions;
     private final Runnable mRefreshSection = this::refresh;
+    private final Runnable mMarkCurrentChannelAsWatched = this::markCurrentChannelAsWatched;
     private BrowseSection mCurrentSection;
     private Video mCurrentVideo;
+    private Video mCurrentChannel;
+    private Video mChannelNewContentUploadsChannel;
+    private boolean mChannelNewContentActive;
+    private boolean mChannelNewContentUploadsLoaded;
     private long mLastUpdateTimeMs = -1;
     private int mBootSectionIndex;
     private int mBootstrapSectionId = -1;
+    private int mChannelNewContentGeneration;
 
     private BrowsePresenter(Context context) {
         super(context);
@@ -91,6 +99,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
 
         mBrowseProcessor = new BrowseProcessorManager(getContext(), this::syncItem);
         mActions = new ArrayList<>();
+        mChannelNewContentActions = new ArrayList<>();
 
         initSectionMappings();
         updateChannelSorting();
@@ -417,15 +426,21 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             return;
         }
 
+        boolean sameItem = item != null && item.equals(mCurrentVideo);
+        mCurrentVideo = item;
+
         if (belongsToChannelUploadsMultiGrid(item)) {
-            if (getMainUIData().isUploadsAutoLoadEnabled()) {
+            mCurrentChannel = item;
+
+            if (!sameItem && getMainUIData().isUploadsAutoLoadEnabled()) {
                 updateChannelUploadsMultiGrid(item);
-            } else {
+            } else if (!getMainUIData().isUploadsAutoLoadEnabled()) {
                 updateChannelUploadsMultiGrid(null); // clear
             }
+        } else {
+            mChannelNewContentActive = false;
+            Utils.removeCallbacks(mMarkCurrentChannelAsWatched);
         }
-
-        mCurrentVideo = item;
     }
 
     @Override
@@ -442,8 +457,31 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                 updateChannelUploadsMultiGrid(item);
             }
         } else {
+            markCurrentChannelAsWatchedOnVideo(item, item.getGroup());
             VideoActionPresenter.instance(getContext()).apply(item);
         }
+    }
+
+    public void onChannelVideoItemSelected(Video item) {
+        if (item == null) {
+            return;
+        }
+
+        mChannelNewContentActive = true;
+        Utils.removeCallbacks(mMarkCurrentChannelAsWatched);
+        markCurrentChannelAsWatchedOnVideo(item, item.getGroup());
+    }
+
+    public void onChannelItemFocused(Video item) {
+        if (!belongsToChannelUploadsMultiGrid(item)) {
+            mChannelNewContentActive = false;
+            Utils.removeCallbacks(mMarkCurrentChannelAsWatched);
+            return;
+        }
+
+        mChannelNewContentActive = true;
+        mCurrentChannel = item;
+        scheduleMarkCurrentChannelAsWatched();
     }
 
     @Override
@@ -700,9 +738,13 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void updateVideoGrid(BrowseSection section, Observable<MediaGroup> group, int column, boolean authCheck) {
+        updateVideoGrid(section, group, column, authCheck, null);
+    }
+
+    private void updateVideoGrid(BrowseSection section, Observable<MediaGroup> group, int column, boolean authCheck, @Nullable Video channelOwner) {
         Log.d(TAG, "loadMultiGridHeader: Start loading section: " + section.getTitle());
 
-        authCheck(authCheck, () -> updateVideoGrid(section, group, column));
+        authCheck(authCheck, () -> updateVideoGrid(section, group, column, channelOwner));
     }
 
     private void updateVideoRows(BrowseSection section, Observable<List<MediaGroup>> groups) {
@@ -762,7 +804,12 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void updateVideoGrid(BrowseSection section, Observable<MediaGroup> group, int column) {
-        disposeActions();
+        updateVideoGrid(section, group, column, null);
+    }
+
+    private void updateVideoGrid(BrowseSection section, Observable<MediaGroup> group, int column, @Nullable Video channelOwner) {
+        disposeActions(column != 1);
+        Video fixedChannelOwner = belongsToChannelUploadsMultiGrid(channelOwner) ? channelOwner : null;
 
         if (getView() == null) {
             Log.e(TAG, "Browse view has been unloaded from the memory. Low RAM?");
@@ -773,6 +820,10 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         Log.d(TAG, "updateGridHeader: Start loading section: " + section.getTitle());
 
         getView().showProgressBar(true);
+
+        if (column == 0 && isChannelUploadsSection(section) && getMainUIData().isChannelNewContentVerificationEnabled()) {
+            ChannelNewContentData.instance(getContext()).beginRefresh();
+        }
 
         // Stay on the same group in case of multiple subscribe calls
         VideoGroup baseGroup = VideoGroup.from(section, column);
@@ -797,13 +848,23 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                             }
 
                             VideoGroup videoGroup = VideoGroup.from(baseGroup, mediaGroup);
+                            applyChannelOwner(videoGroup, fixedChannelOwner != null ? fixedChannelOwner : getCurrentChannel());
                             appendLocalHistory(videoGroup);
+                            prepareChannelNewContent(videoGroup);
                             getView().updateSection(videoGroup);
                             mBrowseProcessor.process(videoGroup);
+                            verifyChannelNewContent(videoGroup);
+
+                            if (column == 1) {
+                                finishChannelUploadsLoading(fixedChannelOwner, true);
+                            }
 
                             continueGroupIfNeeded(videoGroup);
                         },
                         error -> {
+                            if (column == 1) {
+                                finishChannelUploadsLoading(fixedChannelOwner, false);
+                            }
                             Log.e(TAG, "updateGridHeader error: %s", error.getMessage());
                             handleLoadError(error);
                         }, () -> handleLoadError(null));
@@ -856,8 +917,11 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                             getView().showProgressBar(false);
 
                             VideoGroup videoGroup = VideoGroup.from(group, continueGroup);
+                            applyChannelOwner(videoGroup, getChannelOwner(group));
+                            prepareChannelNewContent(videoGroup);
                             getView().updateSection(videoGroup);
                             mBrowseProcessor.process(videoGroup);
+                            verifyChannelNewContent(videoGroup);
 
                             continueGroupIfNeeded(videoGroup, showLoading);
                         },
@@ -917,8 +981,21 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void disposeActions() {
+        disposeActions(true);
+    }
+
+    private void disposeActions(boolean disposeChannelNewContentActions) {
         RxHelper.disposeActions(mActions);
-        Utils.removeCallbacks(mRefreshSection);
+
+        if (disposeChannelNewContentActions) {
+            RxHelper.disposeActions(mChannelNewContentActions);
+            mChannelNewContentGeneration++;
+            mChannelNewContentActive = false;
+            mChannelNewContentUploadsChannel = null;
+            mChannelNewContentUploadsLoaded = false;
+        }
+
+        Utils.removeCallbacks(mRefreshSection, mMarkCurrentChannelAsWatched);
         mLastUpdateTimeMs = -1;
         mBrowseProcessor.dispose();
     }
@@ -928,7 +1005,241 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             return;
         }
 
-        updateVideoGrid(mCurrentSection, ChannelUploadsPresenter.instance(getContext()).obtainUploadsObservable(item), 1, false);
+        if (belongsToChannelUploadsMultiGrid(item)) {
+            mCurrentChannel = item;
+            mChannelNewContentUploadsChannel = item;
+            mChannelNewContentUploadsLoaded = false;
+            Utils.removeCallbacks(mMarkCurrentChannelAsWatched);
+        } else {
+            mChannelNewContentUploadsChannel = null;
+            mChannelNewContentUploadsLoaded = false;
+        }
+
+        Observable<MediaGroup> uploads = ChannelUploadsPresenter.instance(getContext()).obtainUploadsObservable(item);
+        updateVideoGrid(mCurrentSection, uploads, 1, false, item);
+
+        if (uploads == null) {
+            finishChannelUploadsLoading(item, false);
+        }
+    }
+
+    private void prepareChannelNewContent(VideoGroup group) {
+        if (!isChannelUploadsGrid(group)) {
+            return;
+        }
+
+        ChannelNewContentData data = ChannelNewContentData.instance(getContext());
+
+        for (Video item : group.getVideos()) {
+            data.apply(item);
+        }
+
+        if (getMainUIData().getChannelCategorySorting() == MainUIData.CHANNEL_SORTING_NEW_CONTENT) {
+            group.sort(ChannelNewContentData::compare);
+        }
+    }
+
+    private void verifyChannelNewContent(VideoGroup group) {
+        if (!getMainUIData().isChannelNewContentVerificationEnabled() || !isChannelUploadsGrid(group) ||
+                RxHelper.isAnyActionRunning(mChannelNewContentActions)) {
+            return;
+        }
+
+        List<Video> channels = new ArrayList<>();
+
+        for (Video item : group.getVideos()) {
+            if (item.channelNewContentState == Video.CHANNEL_NEW_CONTENT_UNVERIFIED) {
+                channels.add(item);
+            }
+        }
+
+        if (!channels.isEmpty()) {
+            verifyChannelNewContent(group, channels, 0, mChannelNewContentGeneration);
+        } else {
+            ChannelNewContentData.instance(getContext()).finishRefresh();
+        }
+    }
+
+    private void verifyChannelNewContent(VideoGroup group, List<Video> channels, int index, int generation) {
+        if (generation != mChannelNewContentGeneration || getView() == null) {
+            return;
+        }
+
+        if (index >= channels.size()) {
+            ChannelNewContentData.instance(getContext()).finishRefresh();
+            return;
+        }
+
+        Video channel = channels.get(index);
+
+        if (channel.channelNewContentState != Video.CHANNEL_NEW_CONTENT_UNVERIFIED) {
+            verifyChannelNewContent(group, channels, index + 1, generation);
+            return;
+        }
+
+        channel.channelNewContentLoading = true;
+        syncItem(channel);
+
+        Observable<MediaGroup> uploads = ChannelUploadsPresenter.instance(getContext()).obtainUploadsObservable(channel);
+
+        if (uploads == null) {
+            channel.channelNewContentLoading = false;
+            syncItem(channel);
+            verifyChannelNewContent(group, channels, index + 1, generation);
+            return;
+        }
+
+        final boolean[] receivedResult = {false};
+
+        Disposable action = uploads.subscribe(
+                mediaGroup -> {
+                    receivedResult[0] = true;
+                    finishChannelNewContentVerification(channel, mediaGroup);
+                    verifyChannelNewContent(group, channels, index + 1, generation);
+                },
+                error -> {
+                    channel.channelNewContentLoading = false;
+                    syncItem(channel);
+                    Log.e(TAG, "verifyChannelNewContent error: %s", error.getMessage());
+                    verifyChannelNewContent(group, channels, index + 1, generation);
+                },
+                () -> {
+                    if (!receivedResult[0]) {
+                        channel.channelNewContentLoading = false;
+                        syncItem(channel);
+                        verifyChannelNewContent(group, channels, index + 1, generation);
+                    }
+                });
+
+        mChannelNewContentActions.add(action);
+    }
+
+    private void finishChannelNewContentVerification(Video channel, MediaGroup mediaGroup) {
+        channel.channelNewContentLoading = false;
+
+        if (mediaGroup != null) {
+            VideoGroup uploadsGroup = VideoGroup.from(mediaGroup);
+            ChannelNewContentData.instance(getContext()).setVerified(channel, uploadsGroup.getVideos(), mediaGroup);
+        }
+
+        syncItem(channel);
+    }
+
+    private void scheduleMarkCurrentChannelAsWatched() {
+        if (!getMainUIData().isChannelNewContentVerificationEnabled() ||
+                getMainUIData().getChannelNewContentMarkSeenMode() != MainUIData.CHANNEL_NEW_CONTENT_MARK_SEEN_ON_CHANNEL ||
+                !mChannelNewContentActive ||
+                !isMultiGridChannelUploadsSection() ||
+                !belongsToChannelUploadsMultiGrid(getCurrentChannel())) {
+            Utils.removeCallbacks(mMarkCurrentChannelAsWatched);
+            return;
+        }
+
+        if (isChannelUploadsLoading(getCurrentChannel())) {
+            Utils.removeCallbacks(mMarkCurrentChannelAsWatched);
+            return;
+        }
+
+        Utils.postDelayed(mMarkCurrentChannelAsWatched,
+                getMainUIData().getChannelNewContentHighlightDelaySec() * 1_000L);
+    }
+
+    private void markCurrentChannelAsWatched() {
+        markCurrentChannelAsWatched(null);
+    }
+
+    private void markCurrentChannelAsWatchedOnVideo(Video item, @Nullable VideoGroup uploadsGroup) {
+        if (getMainUIData().getChannelNewContentMarkSeenMode() == MainUIData.CHANNEL_NEW_CONTENT_MARK_SEEN_ON_VIDEO ||
+                getMainUIData().getChannelNewContentMarkSeenMode() == MainUIData.CHANNEL_NEW_CONTENT_MARK_SEEN_ON_CHANNEL) {
+            markChannelAsWatched(item != null && item.channelOwner != null ? item.channelOwner : getCurrentChannel(), uploadsGroup);
+        }
+    }
+
+    private void markCurrentChannelAsWatched(@Nullable VideoGroup uploadsGroup) {
+        markChannelAsWatched(getCurrentChannel(), uploadsGroup);
+    }
+
+    private void markChannelAsWatched(Video channel, @Nullable VideoGroup uploadsGroup) {
+        if (!getMainUIData().isChannelNewContentVerificationEnabled() || !isMultiGridChannelUploadsSection() ||
+                !belongsToChannelUploadsMultiGrid(channel)) {
+            return;
+        }
+
+        if (!channel.hasNewContent &&
+                !ChannelNewContentData.isNewContentState(channel.channelNewContentState)) {
+            return;
+        }
+
+        ChannelNewContentData.instance(getContext()).markWatched(
+                channel,
+                uploadsGroup != null ? uploadsGroup.getVideos() : null);
+        Utils.removeCallbacks(mMarkCurrentChannelAsWatched);
+
+        if (mChannelNewContentActive) {
+            syncItem(channel);
+        } else {
+            syncChannelNewContent(channel);
+        }
+    }
+
+    private Video getCurrentChannel() {
+        return belongsToChannelUploadsMultiGrid(mCurrentChannel) ? mCurrentChannel :
+                belongsToChannelUploadsMultiGrid(mCurrentVideo) ? mCurrentVideo : null;
+    }
+
+    private Video getChannelOwner(VideoGroup group) {
+        if (group != null) {
+            for (Video video : group.getVideos()) {
+                if (video.channelOwner != null) {
+                    return video.channelOwner;
+                }
+            }
+        }
+
+        return getCurrentChannel();
+    }
+
+    private void applyChannelOwner(VideoGroup group, Video channel) {
+        if (group == null || group.getPosition() != 1 || channel == null) {
+            return;
+        }
+
+        for (Video video : group.getVideos()) {
+            video.channelOwner = channel;
+        }
+    }
+
+    private void finishChannelUploadsLoading(Video channel, boolean loaded) {
+        if (channel == null || channel != mChannelNewContentUploadsChannel) {
+            return;
+        }
+
+        mChannelNewContentUploadsLoaded = loaded;
+
+        if (loaded && channel == getCurrentChannel()) {
+            scheduleMarkCurrentChannelAsWatched();
+        }
+    }
+
+    private boolean isChannelUploadsLoading(Video channel) {
+        return channel != null &&
+                channel == mChannelNewContentUploadsChannel &&
+                !mChannelNewContentUploadsLoaded;
+    }
+
+    private void syncChannelNewContent(Video channel) {
+        VideoGroup group = channel != null ? channel.getGroup() : null;
+
+        if (getView() != null && isChannelUploadsGrid(group) &&
+                getMainUIData().getChannelCategorySorting() == MainUIData.CHANNEL_SORTING_NEW_CONTENT) {
+            int oldAction = group.getAction();
+            group.sort(ChannelNewContentData::compare);
+            group.setAction(VideoGroup.ACTION_REPLACE_NO_CLEAR);
+            getView().updateSection(group);
+            group.setAction(oldAction);
+        } else {
+            syncItem(channel);
+        }
     }
 
     private boolean belongsToChannelUploadsMultiGrid(Video item) {
@@ -936,7 +1247,16 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private boolean belongsToChannelUploads(Video item) {
-        return item.belongsToChannelUploads() && !item.hasVideo();
+        return item != null && item.belongsToChannelUploads() && !item.hasVideo();
+    }
+
+    private boolean isChannelUploadsGrid(VideoGroup group) {
+        return group != null && isChannelUploadsSection(group.getSection()) &&
+                group.getPosition() != 1;
+    }
+
+    private boolean isChannelUploadsSection(BrowseSection section) {
+        return section != null && section.getId() == MediaGroup.TYPE_CHANNEL_UPLOADS;
     }
 
     @Nullable

@@ -37,6 +37,12 @@ public final class Video {
     public static final String PLAYLIST_LIKED_MUSIC = "LM";
     public static final String TERTIARY_TEXT_DELIM = "•";
     public static final long MAX_LIVE_DURATION_MS = 24 * 60 * 60 * 1_000;
+    public static final int CHANNEL_NEW_CONTENT_NONE = 0;
+    public static final int CHANNEL_NEW_CONTENT_UNVERIFIED = 1;
+    public static final int CHANNEL_NEW_CONTENT_VERIFIED = 2;
+    public static final int CHANNEL_NEW_CONTENT_NOT_NEW = 3;
+    public static final int CHANNEL_NEW_CONTENT_WATCHED = 4;
+    public static final int CHANNEL_NEW_CONTENT_VERIFIED_THIS_REFRESH = 5;
     private static final int MAX_AUTHOR_LENGTH_CHARS = 20;
     private static final String BLACK_PLACEHOLDER_URL = "https://via.placeholder.com/1280x720/000000/000000";
     private static final float RESTORE_POSITION_PERCENTS = 10; // min value for immediately closed videos
@@ -69,6 +75,10 @@ public final class Video {
     public MediaItem shuffleMediaItem;
     public PlaylistInfo playlistInfo;
     public boolean hasNewContent;
+    public int channelNewContentState = CHANNEL_NEW_CONTENT_NONE;
+    public boolean channelNewContentLoading;
+    public long channelNewContentSeenTimeMs;
+    public transient Video channelOwner;
     public boolean isLive;
     public boolean isUpcoming;
     public boolean isUnplayable;
@@ -181,6 +191,10 @@ public final class Video {
         video.percentWatched = item.percentWatched;
         video.badge = item.badge;
         video.hasNewContent = item.hasNewContent;
+        video.channelNewContentState = item.channelNewContentState;
+        video.channelNewContentLoading = item.channelNewContentLoading;
+        video.channelNewContentSeenTimeMs = item.channelNewContentSeenTimeMs;
+        video.channelOwner = item.channelOwner;
         video.previewUrl = item.previewUrl;
         video.playlistId = item.playlistId;
         video.playlistIndex = item.playlistIndex;
@@ -732,6 +746,11 @@ public final class Video {
         }
 
         percentWatched = video.percentWatched;
+        hasNewContent = video.hasNewContent;
+        channelNewContentState = video.channelNewContentState;
+        channelNewContentLoading = video.channelNewContentLoading;
+        channelNewContentSeenTimeMs = video.channelNewContentSeenTimeMs;
+        channelOwner = video.channelOwner;
     }
 
     public void sync(MediaItemMetadata metadata) {
