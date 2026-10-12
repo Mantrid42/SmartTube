@@ -76,6 +76,8 @@ public final class Video {
     public MediaItem shuffleMediaItem;
     public PlaylistInfo playlistInfo;
     public boolean hasNewContent;
+    // Keep the server flag separate from our persisted unread/display state.
+    public boolean hasNewContentFromYouTube;
     public int channelNewContentState = CHANNEL_NEW_CONTENT_NONE;
     public boolean channelNewContentLoading;
     public boolean channelNewContentNewVideo;
@@ -160,6 +162,7 @@ public final class Video {
         video.startTimeSeconds = item.getStartTimeSeconds();
         video.badge = item.getBadgeText();
         video.hasNewContent = item.hasNewContent();
+        video.hasNewContentFromYouTube = video.hasNewContent;
         video.previewUrl = item.getVideoPreviewUrl();
         video.playlistId = item.getPlaylistId();
         video.playlistIndex = item.getPlaylistIndex();
@@ -193,6 +196,7 @@ public final class Video {
         video.percentWatched = item.percentWatched;
         video.badge = item.badge;
         video.hasNewContent = item.hasNewContent;
+        video.hasNewContentFromYouTube = item.hasNewContentFromYouTube;
         video.channelNewContentState = item.channelNewContentState;
         video.channelNewContentLoading = item.channelNewContentLoading;
         video.channelNewContentNewVideo = item.channelNewContentNewVideo;
@@ -750,6 +754,7 @@ public final class Video {
 
         percentWatched = video.percentWatched;
         hasNewContent = video.hasNewContent;
+        hasNewContentFromYouTube = video.hasNewContentFromYouTube;
         channelNewContentState = video.channelNewContentState;
         channelNewContentLoading = video.channelNewContentLoading;
         channelNewContentNewVideo = video.channelNewContentNewVideo;

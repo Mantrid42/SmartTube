@@ -126,7 +126,10 @@ public class ChannelCardPresenter extends LongClickPresenter {
 
         View progress = viewHolder.view.findViewById(R.id.channel_progress);
         progress.setVisibility(video.channelNewContentLoading ? View.VISIBLE : View.GONE);
-        viewHolder.view.findViewById(R.id.channel_new_content_underline).setVisibility(
+        View underline = viewHolder.view.findViewById(R.id.channel_new_content_underline);
+        // The root wraps its content; a lone match-parent overlay can measure to zero width.
+        ViewUtil.setDimensions(underline, mWidth, -1);
+        underline.setVisibility(
                 video.channelNewContentState == Video.CHANNEL_NEW_CONTENT_ADDITIONAL_THIS_REFRESH ? View.VISIBLE : View.GONE);
 
         updateSeenIndicator(viewHolder.view.findViewById(R.id.channel_seen_indicator), video, viewHolder.view.hasFocus());
