@@ -38,7 +38,7 @@ public class ChannelPresenter extends BasePresenter<ChannelView> implements Vide
     private int mSortIdx;
     private Video mChannel;
 
-    private interface OnChannelId {
+    public interface OnChannelId {
         void onChannelId(String channelId);
     }
 
@@ -228,7 +228,7 @@ public class ChannelPresenter extends BasePresenter<ChannelView> implements Vide
 
             VideoGroup group = VideoGroup.from(mediaGroup);
             getView().update(group);
-            mBrowseProcessor.process(group);
+            mBrowseProcessor.process(group, getChannelId());
         }
 
         getView().showProgressBar(false);
@@ -262,7 +262,7 @@ public class ChannelPresenter extends BasePresenter<ChannelView> implements Vide
                         continueMediaGroup -> {
                             VideoGroup newGroup = VideoGroup.from(group, continueMediaGroup);
                             getView().update(newGroup);
-                            mBrowseProcessor.process(newGroup);
+                            mBrowseProcessor.process(newGroup, getChannelId());
                         },
                         error -> {
                             Log.e(TAG, "continueGroup error: %s", error.getMessage());
@@ -306,7 +306,7 @@ public class ChannelPresenter extends BasePresenter<ChannelView> implements Vide
         mChannelId = null;
     }
 
-    private void extractChannelId(Video item, OnChannelId callback) {
+    public void extractChannelId(Video item, OnChannelId callback) {
         if (item != null) {
             if (item.channelId != null) {
                 callback.onChannelId(item.channelId);

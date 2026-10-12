@@ -76,6 +76,7 @@ public class ChannelUploadsMenuPresenter extends BaseMenuPresenter {
         // Doesn't need this since this is the main action.
         //appendOpenChannelUploadsButton();
         appendOpenChannelButton();
+        appendChannelDeArrowButton();
         appendUnsubscribeButton();
         appendMarkAsWatched();
         appendTogglePinVideoToSidebarButton();

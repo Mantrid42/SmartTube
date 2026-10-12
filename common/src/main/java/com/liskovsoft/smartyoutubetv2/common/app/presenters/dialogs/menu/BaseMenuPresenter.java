@@ -15,12 +15,15 @@ import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.ChannelPresenter;
+import com.liskovsoft.smartyoutubetv2.common.app.presenters.ChannelUploadsPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.base.BasePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AccountSelectionPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AppUpdatePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.VideoMenuPresenter.VideoMenuCallback;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelDeArrowData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
 import com.liskovsoft.smartyoutubetv2.common.utils.SimpleEditDialog;
@@ -58,6 +61,26 @@ public abstract class BaseMenuPresenter extends BasePresenter<Void> {
             getDialogPresenter().closeDialog();
         }
         MessageHelpers.cancelToasts();
+    }
+
+    protected void appendChannelDeArrowButton() {
+        Video channel = getVideo();
+        if (channel == null || channel.hasVideo() || (!channel.hasChannel() && !channel.belongsToChannelUploads())) {
+            return;
+        }
+        ChannelDeArrowData data = ChannelDeArrowData.instance(getContext());
+        getDialogPresenter().appendSingleButton(UiOptionItem.from(
+                getContext().getString(data.isEnabled(ChannelDeArrowData.getChannelKey(channel)) ? R.string.disable_channel_dearrow : R.string.enable_channel_dearrow),
+                option -> ChannelPresenter.instance(getContext()).extractChannelId(channel, channelId -> {
+                    if (channelId == null || channelId.isEmpty()) {
+                        return;
+                    }
+                    channel.channelId = channelId;
+                    data.setEnabled(channel, !data.isEnabled(channelId));
+                    closeDialog();
+                    BrowsePresenter.instance(getContext()).refresh(false);
+                    ChannelUploadsPresenter.instance(getContext()).refresh();
+                })));
     }
 
     protected void appendTogglePinVideoToSidebarButton() {

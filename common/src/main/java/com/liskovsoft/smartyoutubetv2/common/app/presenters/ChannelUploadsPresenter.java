@@ -22,6 +22,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.VideoMe
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.interfaces.VideoGroupPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.views.ChannelUploadsView;
 import com.liskovsoft.smartyoutubetv2.common.misc.BrowseProcessorManager;
+import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelDeArrowData;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager.OnComplete;
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager.OnError;
@@ -220,7 +221,7 @@ public class ChannelUploadsPresenter extends BasePresenter<ChannelUploadsView> i
                         continueMediaGroup -> {
                             VideoGroup newGroup = VideoGroup.from(group, continueMediaGroup);
                             getView().update(newGroup);
-                            mBrowseProcessor.process(newGroup);
+                            mBrowseProcessor.process(newGroup, ChannelDeArrowData.getChannelKey(mChannel));
                         },
                         error -> {
                             Log.e(TAG, "continueGroup error: %s", error.getMessage());
@@ -283,7 +284,7 @@ public class ChannelUploadsPresenter extends BasePresenter<ChannelUploadsView> i
         }
 
         getView().update(group);
-        mBrowseProcessor.process(group);
+        mBrowseProcessor.process(group, ChannelDeArrowData.getChannelKey(mChannel));
 
         // Hide loading as long as first group received
         if (!group.isEmpty()) {

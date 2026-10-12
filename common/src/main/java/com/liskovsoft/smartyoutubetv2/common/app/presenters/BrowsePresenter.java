@@ -43,6 +43,7 @@ import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager.AccountCha
 import com.liskovsoft.smartyoutubetv2.common.prefs.AccountsData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.BlockedChannelData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelDeArrowData;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 
 import java.util.ArrayList;
@@ -74,6 +75,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     private final Runnable mRefreshSection = this::refresh;
     private BrowseSection mCurrentSection;
     private Video mCurrentVideo;
+    private Video mDeArrowUploadsChannel;
     private long mLastUpdateTimeMs = -1;
     private int mBootSectionIndex;
     private int mBootstrapSectionId = -1;
@@ -751,7 +753,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                                 }
 
                                 getView().updateSection(videoGroup);
-                                mBrowseProcessor.process(videoGroup);
+                                processBrowseGroup(videoGroup);
 
                                 continueGroupIfNeeded(videoGroup, false);
                             }
@@ -802,7 +804,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                             VideoGroup videoGroup = VideoGroup.from(baseGroup, mediaGroup);
                             appendLocalHistory(videoGroup);
                             getView().updateSection(videoGroup);
-                            mBrowseProcessor.process(videoGroup);
+                            processBrowseGroup(videoGroup);
 
                             continueGroupIfNeeded(videoGroup);
                         },
@@ -860,7 +862,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
 
                             VideoGroup videoGroup = VideoGroup.from(group, continueGroup);
                             getView().updateSection(videoGroup);
-                            mBrowseProcessor.process(videoGroup);
+                            processBrowseGroup(videoGroup);
 
                             continueGroupIfNeeded(videoGroup, showLoading);
                         },
@@ -926,7 +928,15 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         mBrowseProcessor.dispose();
     }
 
+    private void processBrowseGroup(VideoGroup group) {
+        String channelId = group.getPosition() == 1 && mCurrentSection != null &&
+                mCurrentSection.getId() == MediaGroup.TYPE_CHANNEL_UPLOADS && mDeArrowUploadsChannel != null ?
+                ChannelDeArrowData.getChannelKey(mDeArrowUploadsChannel) : null;
+        mBrowseProcessor.process(group, channelId);
+    }
+
     private void updateChannelUploadsMultiGrid(Video item) {
+        mDeArrowUploadsChannel = item;
         if (mCurrentSection == null) {
             return;
         }
