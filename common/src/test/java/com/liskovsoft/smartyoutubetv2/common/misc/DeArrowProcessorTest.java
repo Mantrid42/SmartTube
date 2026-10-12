@@ -27,19 +27,29 @@ public class DeArrowProcessorTest {
     private ChannelDeArrowData channels;
     private DeArrowData global;
     private DeArrowProcessor processor;
+    private UnlocalizedTitleProcessor originalTitles;
+    private com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData ui;
     private final List<String> requested = new ArrayList<>();
     private final List<Video> updated = new ArrayList<>();
 
     @Before
     public void setUp() {
-        AppPrefs.instance(RuntimeEnvironment.getApplication()).setProfileData("channel_dearrow_data", null);
+        AppPrefs.instance(RuntimeEnvironment.getApplication()).setProfileData("channel_dearrow_data", "");
+        AppPrefs.instance(RuntimeEnvironment.getApplication()).setProfileData("channel_dearrow_data_excluded", "");
+        AppPrefs.instance(RuntimeEnvironment.getApplication()).setProfileData("channel_dearrow_data_options",
+                com.liskovsoft.sharedutils.helpers.Helpers.mergeData(true, true, false, 0));
         channels = ChannelDeArrowData.instance(RuntimeEnvironment.getApplication());
         channels.onProfileChanged();
         global = DeArrowData.instance(RuntimeEnvironment.getApplication());
         global.setReplaceTitlesEnabled(false);
         global.setReplaceThumbnailsEnabled(false);
+        ui = com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData.instance(RuntimeEnvironment.getApplication());
+        ui.setUnlocalizedTitlesEnabled(false);
         MediaItemService service = (MediaItemService) Proxy.newProxyInstance(MediaItemService.class.getClassLoader(),
                 new Class<?>[]{MediaItemService.class}, (proxy, method, args) -> {
+                    if ("getUnlocalizedTitleObserve".equals(method.getName())) {
+                        return Observable.just("Original-language " + args[0]);
+                    }
                     if (!"getDeArrowDataObserve".equals(method.getName())) {
                         throw new AssertionError("Unexpected service call: " + method.getName());
                     }
@@ -52,11 +62,14 @@ public class DeArrowProcessorTest {
                     });
                 });
         processor = new DeArrowProcessor(global, channels, service, updated::add);
+        originalTitles = new UnlocalizedTitleProcessor(ui, channels, service, updated::add);
     }
 
     @After
     public void tearDown() {
         processor.dispose();
+        originalTitles.dispose();
+        ui.removeOnChange(originalTitles);
         global.removeOnChange(processor);
         Utils.sHandler.removeCallbacksAndMessages(null);
     }
@@ -144,6 +157,93 @@ public class DeArrowProcessorTest {
         channels.setEnabled(channel, false);
         assertFalse(channels.isEnabled("selected"));
         assertFalse(channels.isEnabled("subscription-key"));
+    }
+
+    @Test
+    public void includedChannelsHaveIndependentTitleAndThumbnailOptions() {
+        channels.setEnabled("selected", true);
+        channels.setReplaceTitlesEnabled(false);
+        channels.setReplaceThumbnailsEnabled(true);
+        global.setReplaceTitlesEnabled(true);
+        Video selected = video("first", "selected");
+        Video other = video("other", "different");
+        processor.process(VideoGroup.from(Arrays.asList(selected, other)));
+        assertNull(selected.deArrowTitle);
+        assertEquals("https://example.com/first", selected.altCardImageUrl);
+        assertEquals("DeArrow other", other.deArrowTitle);
+        assertNull(other.altCardImageUrl);
+        channels.setReplaceTitlesEnabled(true);
+        channels.setReplaceThumbnailsEnabled(false);
+        Video titleOnly = video("title", "selected");
+        processor.process(VideoGroup.from(Arrays.asList(titleOnly)));
+        assertEquals("DeArrow title", titleOnly.deArrowTitle);
+        assertNull(titleOnly.altCardImageUrl);
+    }
+
+    @Test
+    public void exclusionsOverrideGlobalAndIncludedChannelOptions() {
+        global.setReplaceTitlesEnabled(true);
+        global.setReplaceThumbnailsEnabled(true);
+        channels.setEnabled("selected", true);
+        Video channel = video(null, "selected");
+        channel.reloadPageKey = "reload";
+        channels.setExcluded(channel, true);
+        channels.onProfileChanged();
+        Video selected = video("first", "selected");
+        Video continuation = video("next", null);
+        processor.process(VideoGroup.from(Arrays.asList(selected)));
+        processor.process(VideoGroup.from(Arrays.asList(continuation)), "reload");
+        assertTrue(requested.isEmpty());
+        assertFalse(selected.deArrowProcessed);
+        channels.setExcluded(channel, false);
+        processor.process(VideoGroup.from(Arrays.asList(selected)));
+        assertEquals("DeArrow first", selected.deArrowTitle);
+        assertFalse(channels.isExcluded("reload"));
+    }
+
+    @Test
+    public void disabledChannelOptionsPersistAndSkipRequests() {
+        channels.setEnabled("selected", true);
+        channels.setReplaceTitlesEnabled(false);
+        channels.setReplaceThumbnailsEnabled(false);
+        channels.onProfileChanged();
+        global.setReplaceTitlesEnabled(true);
+        processor.process(VideoGroup.from(Arrays.asList(video("first", "selected"))));
+        assertTrue(requested.isEmpty());
+        assertFalse(channels.isReplaceTitlesEnabled());
+        assertFalse(channels.isReplaceThumbnailsEnabled());
+    }
+
+    @Test
+    public void originalTitlesWorkWithChannelThumbnailsAndRespectExclusions() {
+        channels.setEnabled("selected", true);
+        channels.setUnlocalizedTitlesEnabled(true);
+        Video selected = video("first", null);
+        Video other = video("other", "different");
+        VideoGroup group = VideoGroup.from(Arrays.asList(selected, other));
+        processor.process(group, "selected");
+        originalTitles.process(group);
+        assertEquals("Original-language first", selected.deArrowTitle);
+        assertEquals("https://example.com/first", selected.altCardImageUrl);
+        assertNull(other.deArrowTitle);
+        channels.setExcluded("selected", true);
+        ui.setUnlocalizedTitlesEnabled(true);
+        Video excluded = video("excluded", "selected");
+        originalTitles.process(VideoGroup.from(Arrays.asList(excluded)));
+        assertNull(excluded.deArrowTitle);
+    }
+
+    @Test
+    public void fallbackThumbnailsRespectChannelOptionsAndExclusions() {
+        channels.setEnabled("selected", true);
+        channels.setThumbQuality(2);
+        channels.onProfileChanged();
+        Video selected = video("first", null);
+        selected.deArrowChannelId = "selected";
+        assertEquals(2, channels.getThumbQuality(selected, 3));
+        assertEquals(3, channels.getThumbQuality(video("other", "different"), 3));
+        channels.setExcluded("selected", true);
+        assertEquals(0, channels.getThumbQuality(selected, 3));
     }
 
     private static Video video(String id, String channelId) {

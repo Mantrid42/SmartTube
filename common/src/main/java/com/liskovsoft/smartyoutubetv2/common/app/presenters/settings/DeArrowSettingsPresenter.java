@@ -8,6 +8,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.base.BasePresenter;
 import com.liskovsoft.smartyoutubetv2.common.prefs.DeArrowData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelDeArrowData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.utils.ClickbaitRemover;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
@@ -34,6 +35,7 @@ public class DeArrowSettingsPresenter extends BasePresenter<Void> {
         
         appendSwitches(settingsPresenter);
         appendThumbQuality(settingsPresenter);
+        appendChannelSwitches(settingsPresenter);
         appendLinks(settingsPresenter);
 
         settingsPresenter.showDialog(getContext().getString(R.string.dearrow_provider), onFinish);
@@ -41,6 +43,30 @@ public class DeArrowSettingsPresenter extends BasePresenter<Void> {
 
     public void show() {
         show(null);
+    }
+
+    private void appendChannelSwitches(AppDialogPresenter settingsPresenter) {
+        ChannelDeArrowData data = ChannelDeArrowData.instance(getContext());
+        List<OptionItem> options = new ArrayList<>();
+        options.add(UiOptionItem.from(getContext().getString(R.string.card_unlocalized_titles),
+                option -> data.setUnlocalizedTitlesEnabled(option.isSelected()), data.isUnlocalizedTitlesEnabled()));
+        options.add(UiOptionItem.from(getContext().getString(R.string.crowdsoursed_titles),
+                option -> data.setReplaceTitlesEnabled(option.isSelected()), data.isReplaceTitlesEnabled()));
+        options.add(UiOptionItem.from(getContext().getString(R.string.crowdsourced_thumbnails),
+                option -> data.setReplaceThumbnailsEnabled(option.isSelected()), data.isReplaceThumbnailsEnabled()));
+        options.get(0).setRadio(options.get(1));
+        options.get(1).setRadio(options.get(0));
+        settingsPresenter.appendCheckedCategory(getContext().getString(R.string.channel_dearrow_settings), options);
+        List<OptionItem> thumbnails = new ArrayList<>();
+        for (int[] pair : new int[][] {
+                {R.string.thumb_quality_default, ClickbaitRemover.THUMB_QUALITY_DEFAULT},
+                {R.string.thumb_quality_start, ClickbaitRemover.THUMB_QUALITY_START},
+                {R.string.thumb_quality_middle, ClickbaitRemover.THUMB_QUALITY_MIDDLE},
+                {R.string.thumb_quality_end, ClickbaitRemover.THUMB_QUALITY_END}}) {
+            thumbnails.add(UiOptionItem.from(getContext().getString(pair[0]),
+                    option -> data.setThumbQuality(pair[1]), data.getThumbQuality() == pair[1]));
+        }
+        settingsPresenter.appendRadioCategory(getContext().getString(R.string.channel_dearrow_thumbnails), thumbnails);
     }
 
     private void appendThumbQuality(AppDialogPresenter settingsPresenter) {
@@ -81,9 +107,9 @@ public class DeArrowSettingsPresenter extends BasePresenter<Void> {
                 optionItem -> mDeArrowData.setReplaceThumbnailsEnabled(optionItem.isSelected()),
                 mDeArrowData.isReplaceThumbnailsEnabled()));
 
-        for (OptionItem item : options) {
-            settingsPresenter.appendSingleSwitch(item);
-        }
+        options.get(0).setRadio(options.get(1));
+        options.get(1).setRadio(options.get(0));
+        settingsPresenter.appendCheckedCategory(getContext().getString(R.string.global_dearrow_settings), options);
     }
 
     private void appendLinks(AppDialogPresenter settingsPresenter) {

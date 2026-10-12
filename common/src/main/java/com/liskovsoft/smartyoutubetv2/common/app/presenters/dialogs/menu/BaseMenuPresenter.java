@@ -16,7 +16,6 @@ import com.liskovsoft.smartyoutubetv2.common.app.models.playback.ui.UiOptionItem
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.AppDialogPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.BrowsePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.ChannelPresenter;
-import com.liskovsoft.smartyoutubetv2.common.app.presenters.ChannelUploadsPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.base.BasePresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AccountSelectionPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.AppUpdatePresenter;
@@ -24,6 +23,7 @@ import com.liskovsoft.smartyoutubetv2.common.app.presenters.dialogs.menu.VideoMe
 import com.liskovsoft.smartyoutubetv2.common.misc.MediaServiceManager;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelDeArrowData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.DeArrowData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
 import com.liskovsoft.smartyoutubetv2.common.utils.SimpleEditDialog;
@@ -69,6 +69,23 @@ public abstract class BaseMenuPresenter extends BasePresenter<Void> {
             return;
         }
         ChannelDeArrowData data = ChannelDeArrowData.instance(getContext());
+        DeArrowData global = DeArrowData.instance(getContext());
+        String key = ChannelDeArrowData.getChannelKey(channel);
+        boolean excluded = data.isExcluded(key);
+        MainUIData ui = MainUIData.instance(getContext());
+        boolean globalEnabled = global.isReplaceTitlesEnabled() || global.isReplaceThumbnailsEnabled() ||
+                ui.isUnlocalizedTitlesEnabled() || ui.getThumbQuality() != 0;
+        if (globalEnabled || excluded) {
+            getDialogPresenter().appendSingleButton(UiOptionItem.from(
+                    getContext().getString(excluded ? R.string.restore_channel_dearrow : R.string.exclude_channel_dearrow),
+                    option -> ChannelPresenter.instance(getContext()).extractChannelId(channel, channelId -> {
+                        if (channelId == null || channelId.isEmpty()) return;
+                        channel.channelId = channelId;
+                        data.setExcluded(channel, !excluded);
+                        closeDialog();
+                    })));
+        }
+        if (excluded) return;
         getDialogPresenter().appendSingleButton(UiOptionItem.from(
                 getContext().getString(data.isEnabled(ChannelDeArrowData.getChannelKey(channel)) ? R.string.disable_channel_dearrow : R.string.enable_channel_dearrow),
                 option -> ChannelPresenter.instance(getContext()).extractChannelId(channel, channelId -> {
@@ -78,8 +95,6 @@ public abstract class BaseMenuPresenter extends BasePresenter<Void> {
                     channel.channelId = channelId;
                     data.setEnabled(channel, !data.isEnabled(channelId));
                     closeDialog();
-                    BrowsePresenter.instance(getContext()).refresh(false);
-                    ChannelUploadsPresenter.instance(getContext()).refresh();
                 })));
     }
 
