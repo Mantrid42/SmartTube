@@ -16,6 +16,64 @@ public class ChannelDeArrowData implements AppPrefs.ProfileChangeListener {
     private static ChannelDeArrowData sInstance;
     private final AppPrefs mPrefs;
     private final Set<String> mChannelIds = new HashSet<>();
+    private final Set<String> mExcludedIds = new HashSet<>();
+    private boolean mReplaceTitles;
+    private boolean mReplaceThumbnails;
+    private boolean mUnlocalizedTitles;
+    private int mThumbQuality;
+
+    public boolean isUnlocalizedTitlesEnabled() { return mUnlocalizedTitles; }
+    public int getThumbQuality() { return mThumbQuality; }
+
+    public int getThumbQuality(Video video, int globalQuality) {
+        String key = video.channelId != null ? video.channelId : video.deArrowChannelId;
+        return isExcluded(key) ? 0 : isEnabled(key) ? mThumbQuality : globalQuality;
+    }
+
+    public void setUnlocalizedTitlesEnabled(boolean enabled) {
+        mUnlocalizedTitles = enabled;
+        if (enabled) mReplaceTitles = false;
+        persistOptions();
+    }
+
+    public void setThumbQuality(int quality) {
+        mThumbQuality = quality;
+        persistOptions();
+    }
+
+    public boolean isExcluded(String channelId) {
+        return channelId != null && mExcludedIds.contains(channelId);
+    }
+
+    public void setExcluded(Video channel, boolean excluded) {
+        setExcluded(channel.channelId, excluded);
+        setExcluded(channel.reloadPageKey, excluded);
+    }
+
+    public void setExcluded(String channelId, boolean excluded) {
+        if (TextUtils.isEmpty(channelId)) return;
+        if (excluded) mExcludedIds.add(channelId);
+        else mExcludedIds.remove(channelId);
+        mPrefs.setProfileData(DATA_KEY + "_excluded", Helpers.mergeData(new ArrayList<>(mExcludedIds)));
+    }
+
+    public boolean isReplaceTitlesEnabled() { return mReplaceTitles; }
+    public boolean isReplaceThumbnailsEnabled() { return mReplaceThumbnails; }
+
+    public void setReplaceTitlesEnabled(boolean enabled) {
+        mReplaceTitles = enabled;
+        if (enabled) mUnlocalizedTitles = false;
+        persistOptions();
+    }
+
+    public void setReplaceThumbnailsEnabled(boolean enabled) {
+        mReplaceThumbnails = enabled;
+        persistOptions();
+    }
+
+    private void persistOptions() {
+        mPrefs.setProfileData(DATA_KEY + "_options", Helpers.mergeData(mReplaceTitles, mReplaceThumbnails, mUnlocalizedTitles, mThumbQuality));
+    }
 
     private ChannelDeArrowData(Context context) {
         mPrefs = AppPrefs.instance(context);
@@ -60,5 +118,12 @@ public class ChannelDeArrowData implements AppPrefs.ProfileChangeListener {
     public void onProfileChanged() {
         mChannelIds.clear();
         mChannelIds.addAll(Helpers.parseList(Helpers.splitData(mPrefs.getProfileData(DATA_KEY)), 0, Helpers::parseStr));
+        mExcludedIds.clear();
+        mExcludedIds.addAll(Helpers.parseList(Helpers.splitData(mPrefs.getProfileData(DATA_KEY + "_excluded")), 0, Helpers::parseStr));
+        String[] options = Helpers.splitData(mPrefs.getProfileData(DATA_KEY + "_options"));
+        mReplaceTitles = Helpers.parseBoolean(options, 0, true);
+        mReplaceThumbnails = Helpers.parseBoolean(options, 1, true);
+        mUnlocalizedTitles = Helpers.parseBoolean(options, 2, false);
+        mThumbQuality = Helpers.parseInt(options, 3, 0);
     }
 }

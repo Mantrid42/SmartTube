@@ -4,13 +4,13 @@ import android.content.Context;
 import android.util.Pair;
 
 import com.liskovsoft.mediaserviceinterfaces.MediaItemService;
-import com.liskovsoft.mediaserviceinterfaces.ServiceManager;
 import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.mylogger.Log;
 import com.liskovsoft.sharedutils.rx.RxHelper;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.VideoGroup;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelDeArrowData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.common.DataChangeBase.OnDataChange;
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
 
@@ -25,14 +25,20 @@ public class UnlocalizedTitleProcessor implements OnDataChange, BrowseProcessor 
     private final OnItemReady mOnItemReady;
     private final MediaItemService mItemService;
     private final MainUIData mMainUIData;
+    private final ChannelDeArrowData mChannelData;
     private boolean mIsUnlocalizedTitlesEnabled;
     private Disposable mResult;
 
     public UnlocalizedTitleProcessor(Context context, OnItemReady onItemReady) {
+        this(MainUIData.instance(context), ChannelDeArrowData.instance(context),
+                YouTubeServiceManager.instance().getMediaItemService(), onItemReady);
+    }
+
+    UnlocalizedTitleProcessor(MainUIData data, ChannelDeArrowData channels, MediaItemService service, OnItemReady onItemReady) {
         mOnItemReady = onItemReady;
-        ServiceManager service = YouTubeServiceManager.instance();
-        mItemService = service.getMediaItemService();
-        mMainUIData = MainUIData.instance(context);
+        mItemService = service;
+        mMainUIData = data;
+        mChannelData = channels;
         mMainUIData.setOnChange(this);
         initData();
     }
@@ -48,7 +54,7 @@ public class UnlocalizedTitleProcessor implements OnDataChange, BrowseProcessor 
 
     @Override
     public void process(VideoGroup videoGroup) {
-        if (!mIsUnlocalizedTitlesEnabled || videoGroup == null || videoGroup.isEmpty()) {
+        if (videoGroup == null || videoGroup.isEmpty()) {
             return;
         }
 
@@ -80,10 +86,12 @@ public class UnlocalizedTitleProcessor implements OnDataChange, BrowseProcessor 
         List<String> result = new ArrayList<>();
 
         for (Video video : videoGroup.getVideos()) {
-            if (video.deArrowProcessed) {
+            String key = video.channelId != null ? video.channelId : video.deArrowChannelId;
+            boolean enabled = mChannelData.isEnabled(key) ? mChannelData.isUnlocalizedTitlesEnabled() : mIsUnlocalizedTitlesEnabled;
+            if (!enabled || mChannelData.isExcluded(key) || video.videoId == null || video.unlocalizedTitleProcessed) {
                 continue;
             }
-            video.deArrowProcessed = true;
+            video.unlocalizedTitleProcessed = true;
             result.add(video.videoId);
         }
 

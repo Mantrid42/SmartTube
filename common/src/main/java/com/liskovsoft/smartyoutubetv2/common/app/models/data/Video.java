@@ -50,6 +50,8 @@ public final class Video {
     public int id;
     public String title;
     public String deArrowTitle;
+    public String deArrowChannelId;
+    public boolean unlocalizedTitleProcessed;
     public CharSequence secondTitle;
     private String metadataTitle;
     private CharSequence metadataSecondTitle;
@@ -190,6 +192,7 @@ public final class Video {
         video.secondTitle = item.secondTitle;
         video.videoId = item.videoId;
         video.channelId = item.channelId;
+        video.deArrowChannelId = item.deArrowChannelId;
         video.bgImageUrl = item.bgImageUrl;
         video.cardImageUrl = item.cardImageUrl;
         video.author = item.author;

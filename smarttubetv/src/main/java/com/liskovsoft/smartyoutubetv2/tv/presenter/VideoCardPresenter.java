@@ -22,6 +22,7 @@ import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.mylogger.Log;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
+import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelDeArrowData;
 import com.liskovsoft.smartyoutubetv2.common.utils.ClickbaitRemover;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.liskovsoft.smartyoutubetv2.tv.presenter.base.LongClickPresenter;
@@ -171,9 +172,11 @@ public class VideoCardPresenter extends LongClickPresenter {
             return;
         }
 
+        ChannelDeArrowData channelData = ChannelDeArrowData.instance(context);
+        int thumbQuality = channelData.getThumbQuality(video, mThumbQuality);
         Glide.with(context)
                 //.asBitmap() // disable animation (webp, gif)
-                .load(ClickbaitRemover.updateThumbnail(video, mThumbQuality))
+                .load(ClickbaitRemover.updateThumbnail(video, thumbQuality))
                 //.placeholder(mDefaultCardImage)
                 .apply(ViewUtil.glideOptions())
                 // improve image compression on low end devices

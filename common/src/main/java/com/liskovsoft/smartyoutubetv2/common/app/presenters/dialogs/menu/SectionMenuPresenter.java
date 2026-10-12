@@ -94,6 +94,7 @@ public class SectionMenuPresenter extends BaseMenuPresenter {
 
         appendReturnToBackgroundVideoButton();
         appendRefreshButton();
+        appendChannelDeArrowButton();
         appendUnpinVideoFromSidebarButton();
         appendUnpinSectionFromSidebarButton();
         appendMarkAllChannelsWatchedButton();
@@ -125,6 +126,7 @@ public class SectionMenuPresenter extends BaseMenuPresenter {
 
         appendReturnToBackgroundVideoButton();
         appendRefreshButton();
+        appendChannelDeArrowButton();
         appendUnpinVideoFromSidebarButton();
         appendUnpinSectionFromSidebarButton();
         appendAccountSelectionButton();

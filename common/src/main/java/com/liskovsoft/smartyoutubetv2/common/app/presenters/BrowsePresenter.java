@@ -1024,6 +1024,9 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         String channelId = group.getPosition() == 1 && mCurrentSection != null &&
                 mCurrentSection.getId() == MediaGroup.TYPE_CHANNEL_UPLOADS && mDeArrowUploadsChannel != null ?
                 ChannelDeArrowData.getChannelKey(mDeArrowUploadsChannel) : null;
+        if (channelId == null && mCurrentSection != null && mCurrentSection.getData() instanceof Video) {
+            channelId = ChannelDeArrowData.getChannelKey((Video) mCurrentSection.getData());
+        }
         mBrowseProcessor.process(group, channelId);
     }
 

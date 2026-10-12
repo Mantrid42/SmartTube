@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="enable_channel_dearrow">Enable DeArrow for this channel</string>
-    <string name="disable_channel_dearrow">Disable DeArrow for this channel</string>
+    <string name="disable_channel_dearrow">Use global DeArrow settings for this channel</string>
+    <string name="exclude_channel_dearrow">Exclude from DeArrow</string>
+    <string name="restore_channel_dearrow">Remove DeArrow exclusion</string>
+    <string name="channel_dearrow_settings">Included channels (independent of global settings)</string>
+    <string name="global_dearrow_settings">Global settings</string>
+    <string name="channel_dearrow_thumbnails">Included channels: fallback thumbnails</string>
     <string name="header_home">Home</string>
     <string name="title_search">Search</string>
     <string name="header_subscriptions">Subscriptions</string>

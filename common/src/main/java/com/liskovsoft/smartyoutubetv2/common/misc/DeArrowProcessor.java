@@ -69,19 +69,23 @@ public class DeArrowProcessor implements OnDataChange, BrowseProcessor {
         }
         final boolean replaceTitles = mIsReplaceTitlesEnabled;
         final boolean replaceThumbnails = mIsReplaceThumbnailsEnabled;
-        Set<String> channelVideoIds = new HashSet<>();
+        Set<String> titleVideoIds = new HashSet<>();
+        Set<String> thumbnailVideoIds = new HashSet<>();
         List<String> videoIds = new ArrayList<>();
         for (Video video : videoGroup.getVideos()) {
-            boolean channelEnabled = mChannelData.isEnabled(!TextUtils.isEmpty(video.channelId) ? video.channelId : channelId);
+            String key = !TextUtils.isEmpty(video.channelId) ? video.channelId : channelId;
+            video.deArrowChannelId = key;
+            boolean channelEnabled = mChannelData.isEnabled(key);
+            boolean titles = channelEnabled ? mChannelData.isReplaceTitlesEnabled() : replaceTitles;
+            boolean thumbnails = channelEnabled ? mChannelData.isReplaceThumbnailsEnabled() : replaceThumbnails;
             if (TextUtils.isEmpty(video.videoId) || video.deArrowProcessed ||
-                    (!replaceTitles && !replaceThumbnails && !channelEnabled)) {
+                    mChannelData.isExcluded(key) || (!titles && !thumbnails)) {
                 continue;
             }
             video.deArrowProcessed = true;
             videoIds.add(video.videoId);
-            if (channelEnabled) {
-                channelVideoIds.add(video.videoId);
-            }
+            if (titles) titleVideoIds.add(video.videoId);
+            if (thumbnails) thumbnailVideoIds.add(video.videoId);
         }
         if (videoIds.isEmpty()) {
             return;
@@ -92,10 +96,10 @@ public class DeArrowProcessor implements OnDataChange, BrowseProcessor {
                     if (video == null) {
                         return;
                     }
-                    if (replaceTitles || channelVideoIds.contains(video.videoId)) {
+                    if (titleVideoIds.contains(video.videoId)) {
                         video.deArrowTitle = deArrowData.getTitle();
                     }
-                    if (replaceThumbnails || channelVideoIds.contains(video.videoId)) {
+                    if (thumbnailVideoIds.contains(video.videoId)) {
                         video.altCardImageUrl = deArrowData.getThumbnailUrl();
                     }
                     mOnItemReady.onItemReady(video);
