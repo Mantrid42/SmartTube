@@ -53,7 +53,7 @@
     </LinearLayout>
     <View
         android:id="@+id/channel_new_content_underline"
-        android:layout_width="match_parent"
+        android:layout_width="@dimen/channel_card_width"
         android:layout_height="3dp"
         android:layout_gravity="bottom"
         android:background="@color/search_opaque_yellow"

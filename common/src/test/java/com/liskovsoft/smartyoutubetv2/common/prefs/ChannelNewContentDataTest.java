@@ -2,6 +2,7 @@ package com.liskovsoft.smartyoutubetv2.common.prefs;
 
 import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup;
 import com.liskovsoft.smartyoutubetv2.common.app.models.data.Video;
+import com.liskovsoft.smartyoutubetv2.common.app.models.data.SimpleMediaItem;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 
 import org.junit.After;
@@ -130,10 +131,70 @@ public class ChannelNewContentDataTest {
         data.markWatched(channel, videos("seen"));
         data.beginRefresh();
         channel.hasNewContent = true;
+        channel.hasNewContentFromYouTube = true;
         data.apply(channel);
         assertTrue(data.needsVerification(channel));
         data.setVerified(channel, videos("unread", "seen"), group);
         data.finishRefresh();
+    }
+
+    @Test
+    public void savedUnreadChannelOutsideYoutubeFeedIsNotScanned() {
+        seedUnreadChannel();
+        data.beginRefresh();
+        channel.hasNewContentFromYouTube = false;
+        data.apply(channel);
+        assertTrue(channel.hasNewContent);
+        assertEquals(Video.CHANNEL_NEW_CONTENT_VERIFIED, channel.channelNewContentState);
+        assertFalse(data.needsVerification(channel));
+        // Applying display state again must not turn local unread content into a server flag.
+        data.apply(channel);
+        assertFalse(data.needsVerification(channel));
+    }
+
+    @Test
+    public void serverFlagSurvivesConversionAndLocalUnreadCopiesDoNotInventIt() {
+        Video serverChannel = new Video();
+        serverChannel.channelId = "channel";
+        serverChannel.hasNewContent = true;
+        Video flagged = Video.from(SimpleMediaItem.from(serverChannel));
+        data.apply(flagged);
+        assertTrue(data.needsVerification(flagged));
+        data.markUnseen(flagged);
+
+        serverChannel.hasNewContent = false;
+        Video unflagged = Video.from(SimpleMediaItem.from(serverChannel));
+        data.apply(unflagged);
+        assertTrue(unflagged.hasNewContent);
+        assertFalse(data.needsVerification(unflagged));
+        assertFalse(data.needsVerification(Video.from(unflagged)));
+        flagged.sync(unflagged);
+        assertFalse(data.needsVerification(flagged));
+    }
+
+    @Test
+    public void manuallyUnreadChannelOutsideYoutubeFeedIsNotScanned() {
+        data.markUnseen(channel);
+        data.beginRefresh();
+        data.apply(channel);
+        assertTrue(channel.hasNewContent);
+        assertFalse(data.needsVerification(channel));
+    }
+
+    @Test
+    public void feedFlagCanReturnOnLaterRefreshForAnAlreadyUnreadChannel() {
+        seedUnreadChannel();
+        data.beginRefresh();
+        channel.hasNewContentFromYouTube = false;
+        data.apply(channel);
+        assertFalse(data.needsVerification(channel));
+        data.beginRefresh();
+        channel.hasNewContentFromYouTube = true;
+        data.apply(channel);
+        assertTrue(data.needsVerification(channel));
+        data.setVerified(channel, videos("additional", "unread", "seen"), group);
+        assertEquals(Video.CHANNEL_NEW_CONTENT_ADDITIONAL_THIS_REFRESH, channel.channelNewContentState);
+        assertFalse(data.needsVerification(channel));
     }
 
     private static List<Video> videos(String... ids) {

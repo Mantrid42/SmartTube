@@ -168,7 +168,7 @@ public class ChannelNewContentData implements ProfileChangeListener {
         Channel item = findChannel(channel);
         boolean changed = false;
 
-        if (channel.hasNewContent) {
+        if (channel.hasNewContentFromYouTube) {
             item = obtainChannel(channel);
 
             if (item != null) {
@@ -197,7 +197,8 @@ public class ChannelNewContentData implements ProfileChangeListener {
 
     public boolean needsVerification(Video channel) {
         Channel item = findChannel(channel);
-        return item != null && isNewContentState(item.state) && !mVerifiedThisRefreshKeys.contains(item.key);
+        return channel != null && channel.hasNewContentFromYouTube && item != null &&
+                isNewContentState(item.state) && !mVerifiedThisRefreshKeys.contains(item.key);
     }
 
     public void setVerified(Video channel, MediaGroup mediaGroup) {
