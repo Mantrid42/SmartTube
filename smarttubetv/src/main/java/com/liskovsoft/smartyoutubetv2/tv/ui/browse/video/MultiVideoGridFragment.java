@@ -2,6 +2,9 @@ package com.liskovsoft.smartyoutubetv2.tv.ui.browse.video;
 
 import android.os.Bundle;
 import android.view.View;
+import android.widget.FrameLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -53,8 +56,12 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
     private int mSelectedItemIndex2 = -1;
     private Video mSelectedItem1;
     private Video mSelectedItem2;
+    private View mChannelNewContentProgress;
+    private TextView mChannelNewContentProgressText;
+    private ProgressBar mChannelNewContentProgressBar;
     private float mVideoGridScale;
     private final Runnable mRestore1Task = this::restorePosition1;
+    private final Runnable mPositionChannelNewContentProgressTask = this::positionChannelNewContentProgress;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -79,7 +86,21 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        setupChannelNewContentProgress(view);
         removePadding();
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (mChannelNewContentProgress != null) {
+            mChannelNewContentProgress.removeCallbacks(mPositionChannelNewContentProgressTask);
+        }
+
+        mChannelNewContentProgress = null;
+        mChannelNewContentProgressText = null;
+        mChannelNewContentProgressBar = null;
+
+        super.onDestroyView();
     }
 
     @Override
@@ -179,6 +200,75 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
                 }
             });
         }
+    }
+
+    private void setupChannelNewContentProgress(View root) {
+        mChannelNewContentProgress = root.findViewById(R.id.channel_new_content_progress);
+        mChannelNewContentProgressText = root.findViewById(R.id.channel_new_content_progress_text);
+        mChannelNewContentProgressBar = root.findViewById(R.id.channel_new_content_progress_bar);
+    }
+
+    public void showChannelNewContentProgress(boolean show, int current, int total) {
+        if (mChannelNewContentProgress == null) {
+            return;
+        }
+
+        mChannelNewContentProgress.removeCallbacks(mPositionChannelNewContentProgressTask);
+
+        if (!show || total <= 0) {
+            mChannelNewContentProgress.setVisibility(View.GONE);
+            return;
+        }
+
+        int safeTotal = Math.max(1, total);
+        int safeCurrent = Math.max(1, Math.min(current, safeTotal));
+
+        if (mChannelNewContentProgressText != null) {
+            mChannelNewContentProgressText.setText(getString(R.string.channel_new_content_checking_progress, safeCurrent, safeTotal));
+        }
+
+        if (mChannelNewContentProgressBar != null) {
+            mChannelNewContentProgressBar.setMax(safeTotal);
+            mChannelNewContentProgressBar.setProgress(safeCurrent);
+        }
+
+        mChannelNewContentProgress.setVisibility(View.VISIBLE);
+        mChannelNewContentProgress.post(mPositionChannelNewContentProgressTask);
+    }
+
+    private void positionChannelNewContentProgress() {
+        View root = getView();
+        VerticalGridView grid = getBrowseGrid1();
+
+        if (root == null || grid == null || mChannelNewContentProgress == null ||
+                !(mChannelNewContentProgress.getLayoutParams() instanceof FrameLayout.LayoutParams)) {
+            return;
+        }
+
+        int[] rootLocation = new int[2];
+        int[] gridLocation = new int[2];
+        root.getLocationOnScreen(rootLocation);
+        grid.getLocationOnScreen(gridLocation);
+
+        int defaultWidth = getResources().getDimensionPixelSize(R.dimen.channel_card_width);
+        int gridWidth = grid.getWidth() - grid.getPaddingLeft() - grid.getPaddingRight();
+        int progressWidth = gridWidth > 0 ? Math.min(defaultWidth, gridWidth) : defaultWidth;
+
+        if (mChannelNewContentProgress.getMeasuredHeight() <= 0) {
+            mChannelNewContentProgress.measure(
+                    View.MeasureSpec.makeMeasureSpec(progressWidth, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        }
+
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) mChannelNewContentProgress.getLayoutParams();
+        int progressHeight = mChannelNewContentProgress.getHeight() > 0 ?
+                mChannelNewContentProgress.getHeight() : mChannelNewContentProgress.getMeasuredHeight();
+        int spacing = getResources().getDimensionPixelSize(R.dimen.channel_new_content_progress_spacing);
+
+        params.width = progressWidth;
+        params.leftMargin = Math.max(0, gridLocation[0] - rootLocation[0] + grid.getPaddingLeft());
+        params.topMargin = Math.max(0, gridLocation[1] - rootLocation[1] + grid.getPaddingTop() - progressHeight - spacing);
+        mChannelNewContentProgress.setLayoutParams(params);
     }
 
     protected VideoGroupPresenter getMainPresenter() {
@@ -451,6 +541,7 @@ public class MultiVideoGridFragment extends MultiGridFragment implements VideoSe
         return item.hasNewContent ||
                 item.channelNewContentState == Video.CHANNEL_NEW_CONTENT_UNVERIFIED ||
                 item.channelNewContentState == Video.CHANNEL_NEW_CONTENT_VERIFIED ||
+                item.channelNewContentState == Video.CHANNEL_NEW_CONTENT_ADDITIONAL_THIS_REFRESH ||
                 item.channelNewContentState == Video.CHANNEL_NEW_CONTENT_VERIFIED_THIS_REFRESH;
     }
 

@@ -39,6 +39,8 @@ public class ChannelNewContentData implements ProfileChangeListener {
     private long mLastNewContentReportTimeMs;
     private long mCurrentNewContentReportTimeMs;
     private final Set<String> mNewContentThisRefreshKeys = new HashSet<>();
+    private final Set<String> mAdditionalContentThisRefreshKeys = new HashSet<>();
+    private final Set<String> mVerifiedThisRefreshKeys = new HashSet<>();
     private final Runnable mPersistStateInt = this::persistStateInt;
 
     private static class Channel {
@@ -50,11 +52,13 @@ public class ChannelNewContentData implements ProfileChangeListener {
         public boolean manualNewContent;
         public List<String> seenVideoIds;
         public List<String> latestVideoIds;
+        public List<String> newVideoIds;
 
         public Channel(String key) {
             this.key = key;
             this.seenVideoIds = new ArrayList<>();
             this.latestVideoIds = new ArrayList<>();
+            this.newVideoIds = new ArrayList<>();
         }
 
         public static Channel fromString(String spec) {
@@ -72,6 +76,8 @@ public class ChannelNewContentData implements ProfileChangeListener {
             channel.manualNewContent = Helpers.parseBoolean(split[5]);
             channel.seenVideoIds = Helpers.parseList(split, 6, VIDEO_LIST_DELIM, Helpers::parseStr);
             channel.latestVideoIds = Helpers.parseList(split, 7, VIDEO_LIST_DELIM, Helpers::parseStr);
+            channel.newVideoIds = split.length > 8 ?
+                    Helpers.parseList(split, 8, VIDEO_LIST_DELIM, Helpers::parseStr) : new ArrayList<>();
 
             return TextUtils.isEmpty(channel.key) ? null : channel;
         }
@@ -112,7 +118,8 @@ public class ChannelNewContentData implements ProfileChangeListener {
                     state,
                     manualNewContent,
                     Helpers.mergeList(VIDEO_LIST_DELIM, seenVideoIds),
-                    Helpers.mergeList(VIDEO_LIST_DELIM, latestVideoIds));
+                    Helpers.mergeList(VIDEO_LIST_DELIM, latestVideoIds),
+                    Helpers.mergeList(VIDEO_LIST_DELIM, newVideoIds));
         }
     }
 
@@ -132,7 +139,15 @@ public class ChannelNewContentData implements ProfileChangeListener {
 
     public void beginRefresh() {
         mNewContentThisRefreshKeys.clear();
+        mAdditionalContentThisRefreshKeys.clear();
+        mVerifiedThisRefreshKeys.clear();
+
+        for (Channel channel : mChannels) {
+            channel.newVideoIds.clear();
+        }
+
         mCurrentNewContentReportTimeMs = System.currentTimeMillis();
+        persistState();
     }
 
     public void finishRefresh() {
@@ -180,6 +195,11 @@ public class ChannelNewContentData implements ProfileChangeListener {
         return item != null;
     }
 
+    public boolean needsVerification(Video channel) {
+        Channel item = findChannel(channel);
+        return item != null && isNewContentState(item.state) && !mVerifiedThisRefreshKeys.contains(item.key);
+    }
+
     public void setVerified(Video channel, MediaGroup mediaGroup) {
         VideoGroup group = mediaGroup != null ? VideoGroup.from(mediaGroup) : null;
         setVerified(channel, group != null ? group.getVideos() : null, mediaGroup);
@@ -200,13 +220,18 @@ public class ChannelNewContentData implements ProfileChangeListener {
 
         item.update(channel);
 
+        List<String> previousLatestVideoIds = new ArrayList<>(item.latestVideoIds);
         List<String> latestVideoIds = getVideoIdsFromVideos(videos);
+        boolean alreadyHadNewContent = item.state == Video.CHANNEL_NEW_CONTENT_VERIFIED;
         boolean hasNewContent;
 
         if (latestVideoIds.isEmpty()) {
             hasNewContent = false;
         } else if (!item.seenVideoIds.isEmpty()) {
             hasNewContent = containsNewVideoIds(latestVideoIds, item.seenVideoIds);
+        } else if (alreadyHadNewContent) {
+            // A scan does not acknowledge previously discovered, unseen uploads.
+            hasNewContent = true;
         } else if (!item.latestVideoIds.isEmpty()) {
             hasNewContent = containsNewVideoIds(latestVideoIds, item.latestVideoIds);
         } else {
@@ -217,17 +242,34 @@ public class ChannelNewContentData implements ProfileChangeListener {
             hasNewContent = true;
         }
 
+        if (alreadyHadNewContent) {
+            // Highlight only uploads added since the last scan, not the old unread backlog.
+            item.newVideoIds = getNewVideoIds(videos, latestVideoIds, previousLatestVideoIds,
+                    previousLatestVideoIds, getReportCutoffTimeMs(), false);
+        } else {
+            item.newVideoIds = hasNewContent ?
+                getNewVideoIds(videos, latestVideoIds, item.seenVideoIds, previousLatestVideoIds, getReportCutoffTimeMs(), item.manualNewContent) :
+                new ArrayList<>();
+        }
         item.latestVideoIds = latestVideoIds;
         item.state = hasNewContent ? Video.CHANNEL_NEW_CONTENT_VERIFIED : Video.CHANNEL_NEW_CONTENT_NOT_NEW;
+        mVerifiedThisRefreshKeys.add(item.key);
 
-        if (hasNewContent) {
+        if (hasNewContent && (!alreadyHadNewContent || !item.newVideoIds.isEmpty())) {
             mNewContentThisRefreshKeys.add(item.key);
+            if (alreadyHadNewContent) {
+                mAdditionalContentThisRefreshKeys.add(item.key);
+            }
         } else {
             mNewContentThisRefreshKeys.remove(item.key);
-            item.manualNewContent = false;
+            mAdditionalContentThisRefreshKeys.remove(item.key);
+            if (!hasNewContent) {
+                item.manualNewContent = false;
+            }
         }
 
         applyTo(channel, item);
+        applyNewVideoMarkers(channel, videos);
         persistState();
     }
 
@@ -259,7 +301,6 @@ public class ChannelNewContentData implements ProfileChangeListener {
 
         item.manualNewContent = false;
         item.state = Video.CHANNEL_NEW_CONTENT_WATCHED;
-        mNewContentThisRefreshKeys.remove(item.key);
         channel.channelNewContentSeenTimeMs = System.currentTimeMillis();
         item.update(channel);
         applyTo(channel, item);
@@ -275,6 +316,7 @@ public class ChannelNewContentData implements ProfileChangeListener {
 
         item.manualNewContent = true;
         item.state = Video.CHANNEL_NEW_CONTENT_VERIFIED;
+        item.newVideoIds = new ArrayList<>(item.latestVideoIds);
         mNewContentThisRefreshKeys.remove(item.key);
         channel.channelNewContentSeenTimeMs = 0;
         item.update(channel);
@@ -282,9 +324,15 @@ public class ChannelNewContentData implements ProfileChangeListener {
         persistState();
     }
 
+    public void applyNewVideoMarkers(Video channel, @Nullable List<Video> videos) {
+        Channel item = findChannel(channel);
+        applyNewVideoMarkersToVideos(videos, item);
+    }
+
     public static boolean isNewContentState(int state) {
         return state == Video.CHANNEL_NEW_CONTENT_UNVERIFIED ||
                 state == Video.CHANNEL_NEW_CONTENT_VERIFIED ||
+                state == Video.CHANNEL_NEW_CONTENT_ADDITIONAL_THIS_REFRESH ||
                 state == Video.CHANNEL_NEW_CONTENT_VERIFIED_THIS_REFRESH;
     }
 
@@ -297,6 +345,7 @@ public class ChannelNewContentData implements ProfileChangeListener {
             case Video.CHANNEL_NEW_CONTENT_UNVERIFIED:
             case Video.CHANNEL_NEW_CONTENT_VERIFIED:
             case Video.CHANNEL_NEW_CONTENT_VERIFIED_THIS_REFRESH:
+            case Video.CHANNEL_NEW_CONTENT_ADDITIONAL_THIS_REFRESH:
                 return 0;
             case Video.CHANNEL_NEW_CONTENT_NOT_NEW:
             case Video.CHANNEL_NEW_CONTENT_WATCHED:
@@ -376,6 +425,7 @@ public class ChannelNewContentData implements ProfileChangeListener {
 
         if (channel == null) {
             video.channelNewContentState = Video.CHANNEL_NEW_CONTENT_NONE;
+            video.channelNewContentNewVideo = false;
             return;
         }
 
@@ -386,11 +436,31 @@ public class ChannelNewContentData implements ProfileChangeListener {
         int state = channel.state;
 
         if (state == Video.CHANNEL_NEW_CONTENT_VERIFIED && mNewContentThisRefreshKeys.contains(channel.key)) {
-            state = Video.CHANNEL_NEW_CONTENT_VERIFIED_THIS_REFRESH;
+            state = mAdditionalContentThisRefreshKeys.contains(channel.key) ?
+                    Video.CHANNEL_NEW_CONTENT_ADDITIONAL_THIS_REFRESH : Video.CHANNEL_NEW_CONTENT_VERIFIED_THIS_REFRESH;
         }
 
         video.channelNewContentState = state;
         video.hasNewContent = isNewContentState(state);
+    }
+
+    private void applyNewVideoMarkersToVideos(@Nullable List<Video> videos, @Nullable Channel channel) {
+        if (videos == null) {
+            return;
+        }
+
+        for (Video video : videos) {
+            video.channelNewContentNewVideo = isNewVideo(channel, video);
+        }
+    }
+
+    private boolean isNewVideo(@Nullable Channel channel, @Nullable Video video) {
+        if (channel == null || video == null || TextUtils.isEmpty(video.videoId) ||
+                !mNewContentThisRefreshKeys.contains(channel.key)) {
+            return false;
+        }
+
+        return channel.newVideoIds.contains(video.videoId);
     }
 
     private List<String> getVideoIds(@Nullable List<MediaItem> items) {
@@ -445,6 +515,49 @@ public class ChannelNewContentData implements ProfileChangeListener {
         }
 
         return false;
+    }
+
+    private List<String> getNewVideoIds(@Nullable List<Video> videos, List<String> latestVideoIds, List<String> seenVideoIds,
+                                        List<String> previousLatestVideoIds, long cutoffTimeMs, boolean manualNewContent) {
+        List<String> result = new ArrayList<>();
+
+        if (latestVideoIds.isEmpty()) {
+            return result;
+        }
+
+        if (!seenVideoIds.isEmpty()) {
+            addMissingVideoIds(result, latestVideoIds, seenVideoIds);
+        } else if (!previousLatestVideoIds.isEmpty()) {
+            addMissingVideoIds(result, latestVideoIds, previousLatestVideoIds);
+        } else {
+            addVideoIdsPublishedAfter(result, videos, latestVideoIds, cutoffTimeMs);
+        }
+
+        if (manualNewContent && result.isEmpty()) {
+            result.addAll(latestVideoIds);
+        }
+
+        return result;
+    }
+
+    private void addMissingVideoIds(List<String> result, List<String> sourceVideoIds, List<String> knownVideoIds) {
+        for (String videoId : sourceVideoIds) {
+            if (!knownVideoIds.contains(videoId)) {
+                result.add(videoId);
+            }
+        }
+    }
+
+    private void addVideoIdsPublishedAfter(List<String> result, @Nullable List<Video> videos, List<String> latestVideoIds, long cutoffTimeMs) {
+        if (videos == null || cutoffTimeMs <= 0) {
+            return;
+        }
+
+        for (Video video : videos) {
+            if (video != null && latestVideoIds.contains(video.videoId) && getPublishedTimeMs(video) > cutoffTimeMs) {
+                result.add(video.videoId);
+            }
+        }
     }
 
     private boolean containsVideoPublishedAfter(@Nullable List<Video> videos, long cutoffTimeMs) {
@@ -567,6 +680,8 @@ public class ChannelNewContentData implements ProfileChangeListener {
         mLastNewContentReportTimeMs = Helpers.parseLong(split, 1, 0);
         mCurrentNewContentReportTimeMs = 0;
         mNewContentThisRefreshKeys.clear();
+        mAdditionalContentThisRefreshKeys.clear();
+        mVerifiedThisRefreshKeys.clear();
     }
 
     public void persistNow() {

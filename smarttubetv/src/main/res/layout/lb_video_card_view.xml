@@ -71,5 +71,6 @@
                 android:scaleType="fitCenter"
                 android:visibility="gone" />
         </RelativeLayout>
+
     </androidx.leanback.widget.NonOverlappingFrameLayout>
 </merge>

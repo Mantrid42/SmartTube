@@ -71,6 +71,13 @@ public class AppDialogActivity extends MotherActivity {
         }
 
         // Toggle dialog
+        if (!mFragment.isOverlay() && event.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT && mFragment.canGoBack()) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                mFragment.goBack();
+            }
+            return true;
+        }
+
         if (!mFragment.isOverlay() && (KeyHelpers.isLeftRightKey(event.getKeyCode()) || KeyHelpers.isMenuKey(event.getKeyCode()))) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 finish();

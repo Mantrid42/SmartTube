@@ -46,6 +46,7 @@ import com.liskovsoft.smartyoutubetv2.common.prefs.ChannelNewContentData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -73,12 +74,14 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     private final BrowseProcessorManager mBrowseProcessor;
     private final List<Disposable> mActions;
     private final List<Disposable> mChannelNewContentActions;
+    private final List<Video> mChannelNewContentLoadingChannels;
     private final Runnable mRefreshSection = this::refresh;
     private final Runnable mMarkCurrentChannelAsWatched = this::markCurrentChannelAsWatched;
     private BrowseSection mCurrentSection;
     private Video mCurrentVideo;
     private Video mCurrentChannel;
     private Video mChannelNewContentUploadsChannel;
+    private VideoGroup mChannelNewContentUploadsGroup;
     private boolean mChannelNewContentActive;
     private boolean mChannelNewContentUploadsLoaded;
     private long mLastUpdateTimeMs = -1;
@@ -101,6 +104,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         mBrowseProcessor = new BrowseProcessorManager(getContext(), this::syncItem);
         mActions = new ArrayList<>();
         mChannelNewContentActions = new ArrayList<>();
+        mChannelNewContentLoadingChannels = new ArrayList<>();
 
         initSectionMappings();
         updateChannelSorting();
@@ -822,6 +826,8 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
 
         Log.d(TAG, "updateGridHeader: Start loading section: " + section.getTitle());
 
+        boolean keepCurrentContentOnRecoverableError = keepCurrentContentOnRecoverableError(section, column);
+
         getView().showProgressBar(true);
 
         if (column == 0 && isChannelUploadsSection(section) && getMainUIData().isChannelNewContentVerificationEnabled()) {
@@ -830,12 +836,15 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
 
         // Stay on the same group in case of multiple subscribe calls
         VideoGroup baseGroup = VideoGroup.from(section, column);
-        baseGroup.setAction(VideoGroup.ACTION_REPLACE);
-        getView().updateSection(baseGroup);
+        if (!keepCurrentContentOnRecoverableError) {
+            baseGroup.setAction(VideoGroup.ACTION_REPLACE);
+            getView().updateSection(baseGroup);
+        }
 
         if (group == null) {
             // No group. Maybe just clear.
             getView().showProgressBar(false);
+            showChannelNewContentProgress(false, 0, 0);
             return;
         }
 
@@ -854,23 +863,26 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                             applyChannelOwner(videoGroup, fixedChannelOwner != null ? fixedChannelOwner : getCurrentChannel());
                             appendLocalHistory(videoGroup);
                             prepareChannelNewContent(videoGroup);
+                            if (keepCurrentContentOnRecoverableError) {
+                                videoGroup.setAction(VideoGroup.ACTION_REPLACE_NO_CLEAR);
+                            }
                             getView().updateSection(videoGroup);
                             mBrowseProcessor.process(videoGroup);
                             verifyChannelNewContent(videoGroup);
 
                             if (column == 1) {
-                                finishChannelUploadsLoading(fixedChannelOwner, true);
+                                finishChannelUploadsLoading(fixedChannelOwner, videoGroup, true);
                             }
 
                             continueGroupIfNeeded(videoGroup);
                         },
                         error -> {
                             if (column == 1) {
-                                finishChannelUploadsLoading(fixedChannelOwner, false);
+                                finishChannelUploadsLoading(fixedChannelOwner, null, false);
                             }
                             Log.e(TAG, "updateGridHeader error: %s", error.getMessage());
-                            handleLoadError(error);
-                        }, () -> handleLoadError(null));
+                            handleLoadError(error, keepCurrentContentOnRecoverableError);
+                        }, () -> handleLoadError(null, keepCurrentContentOnRecoverableError));
 
         mActions.add(updateAction);
     }
@@ -993,8 +1005,11 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         if (disposeChannelNewContentActions) {
             RxHelper.disposeActions(mChannelNewContentActions);
             mChannelNewContentGeneration++;
+            clearChannelNewContentLoading();
+            showChannelNewContentProgress(false, 0, 0);
             mChannelNewContentActive = false;
             mChannelNewContentUploadsChannel = null;
+            mChannelNewContentUploadsGroup = null;
             mChannelNewContentUploadsLoaded = false;
         }
 
@@ -1011,10 +1026,12 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         if (belongsToChannelUploadsMultiGrid(item)) {
             mCurrentChannel = item;
             mChannelNewContentUploadsChannel = item;
+            mChannelNewContentUploadsGroup = null;
             mChannelNewContentUploadsLoaded = false;
             Utils.removeCallbacks(mMarkCurrentChannelAsWatched);
         } else {
             mChannelNewContentUploadsChannel = null;
+            mChannelNewContentUploadsGroup = null;
             mChannelNewContentUploadsLoaded = false;
         }
 
@@ -1022,7 +1039,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         updateVideoGrid(mCurrentSection, uploads, 1, false, item);
 
         if (uploads == null) {
-            finishChannelUploadsLoading(item, false);
+            finishChannelUploadsLoading(item, null, false);
         }
     }
 
@@ -1051,7 +1068,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         List<Video> channels = new ArrayList<>();
 
         for (Video item : group.getVideos()) {
-            if (item.channelNewContentState == Video.CHANNEL_NEW_CONTENT_UNVERIFIED) {
+            if (ChannelNewContentData.instance(getContext()).needsVerification(item)) {
                 channels.add(item);
             }
         }
@@ -1059,6 +1076,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         if (!channels.isEmpty()) {
             verifyChannelNewContent(group, channels, 0, mChannelNewContentGeneration);
         } else {
+            showChannelNewContentProgress(false, 0, 0);
             ChannelNewContentData.instance(getContext()).finishRefresh();
         }
     }
@@ -1069,24 +1087,26 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         }
 
         if (index >= channels.size()) {
+            showChannelNewContentProgress(false, 0, 0);
             ChannelNewContentData.instance(getContext()).finishRefresh();
             return;
         }
 
         Video channel = channels.get(index);
+        showChannelNewContentProgress(true, index + 1, channels.size());
 
-        if (channel.channelNewContentState != Video.CHANNEL_NEW_CONTENT_UNVERIFIED) {
+        if (!ChannelNewContentData.instance(getContext()).needsVerification(channel)) {
             verifyChannelNewContent(group, channels, index + 1, generation);
             return;
         }
 
-        channel.channelNewContentLoading = true;
+        setChannelNewContentLoading(channel, true);
         syncItem(channel);
 
         Observable<MediaGroup> uploads = ChannelUploadsPresenter.instance(getContext()).obtainUploadsObservable(channel);
 
         if (uploads == null) {
-            channel.channelNewContentLoading = false;
+            setChannelNewContentLoading(channel, false);
             syncItem(channel);
             verifyChannelNewContent(group, channels, index + 1, generation);
             return;
@@ -1101,14 +1121,14 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
                     verifyChannelNewContent(group, channels, index + 1, generation);
                 },
                 error -> {
-                    channel.channelNewContentLoading = false;
+                    setChannelNewContentLoading(channel, false);
                     syncItem(channel);
                     Log.e(TAG, "verifyChannelNewContent error: %s", error.getMessage());
                     verifyChannelNewContent(group, channels, index + 1, generation);
                 },
                 () -> {
                     if (!receivedResult[0]) {
-                        channel.channelNewContentLoading = false;
+                        setChannelNewContentLoading(channel, false);
                         syncItem(channel);
                         verifyChannelNewContent(group, channels, index + 1, generation);
                     }
@@ -1118,14 +1138,44 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void finishChannelNewContentVerification(Video channel, MediaGroup mediaGroup) {
-        channel.channelNewContentLoading = false;
+        setChannelNewContentLoading(channel, false);
 
         if (mediaGroup != null) {
             VideoGroup uploadsGroup = VideoGroup.from(mediaGroup);
             ChannelNewContentData.instance(getContext()).setVerified(channel, uploadsGroup.getVideos(), mediaGroup);
+            if (channel == mChannelNewContentUploadsChannel && mChannelNewContentUploadsGroup != null && getView() != null) {
+                ChannelNewContentData.instance(getContext()).applyNewVideoMarkers(channel, mChannelNewContentUploadsGroup.getVideos());
+                syncItem(mChannelNewContentUploadsGroup.getVideos());
+            }
         }
 
         syncItem(channel);
+    }
+
+    private void setChannelNewContentLoading(Video channel, boolean loading) {
+        if (channel == null) {
+            return;
+        }
+
+        channel.channelNewContentLoading = loading;
+
+        if (loading) {
+            if (!mChannelNewContentLoadingChannels.contains(channel)) {
+                mChannelNewContentLoadingChannels.add(channel);
+            }
+        } else {
+            mChannelNewContentLoadingChannels.remove(channel);
+        }
+    }
+
+    private void clearChannelNewContentLoading() {
+        for (Video channel : new ArrayList<>(mChannelNewContentLoadingChannels)) {
+            if (channel != null) {
+                channel.channelNewContentLoading = false;
+            }
+        }
+
+        mChannelNewContentLoadingChannels.clear();
     }
 
     private void scheduleMarkCurrentChannelAsWatched() {
@@ -1173,6 +1223,10 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             return;
         }
 
+        if (uploadsGroup == null && channel == mChannelNewContentUploadsChannel) {
+            uploadsGroup = mChannelNewContentUploadsGroup;
+        }
+
         ChannelNewContentData.instance(getContext()).markWatched(
                 channel,
                 uploadsGroup != null ? uploadsGroup.getVideos() : null);
@@ -1210,14 +1264,17 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         for (Video video : group.getVideos()) {
             video.channelOwner = channel;
         }
+
+        ChannelNewContentData.instance(getContext()).applyNewVideoMarkers(channel, group.getVideos());
     }
 
-    private void finishChannelUploadsLoading(Video channel, boolean loaded) {
+    private void finishChannelUploadsLoading(Video channel, @Nullable VideoGroup uploadsGroup, boolean loaded) {
         if (channel == null || channel != mChannelNewContentUploadsChannel) {
             return;
         }
 
         mChannelNewContentUploadsLoaded = loaded;
+        mChannelNewContentUploadsGroup = loaded ? uploadsGroup : null;
 
         if (loaded && channel == getCurrentChannel()) {
             scheduleMarkCurrentChannelAsWatched();
@@ -1502,11 +1559,27 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
     }
 
     private void handleLoadError(Throwable error) {
+        handleLoadError(error, false);
+    }
+
+    private void handleLoadError(Throwable error, boolean keepCurrentContentOnRecoverableError) {
         if (getView() == null) {
             return;
         }
 
         getView().showProgressBar(false);
+        if (error != null) {
+            showChannelNewContentProgress(false, 0, 0);
+        }
+
+        if (keepCurrentContentOnRecoverableError && error != null && !getView().isEmpty() && isRecoverableRefreshError(error)) {
+            if (Utils.fixRetrofitErrors(getContext(), error)) {
+                return;
+            }
+
+            Utils.postDelayed(mRefreshSection, 30_000);
+            return;
+        }
 
         if (getView().isEmpty() || error != null) {
             ErrorFragmentData errorFragmentData;
@@ -1525,6 +1598,28 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             }
 
             Utils.postDelayed(mRefreshSection, 30_000);
+        }
+    }
+
+    private boolean keepCurrentContentOnRecoverableError(BrowseSection section, int column) {
+        return column == 0 && isChannelUploadsSection(section) && getView() != null && !getView().isEmpty();
+    }
+
+    private boolean isRecoverableRefreshError(Throwable error) {
+        while (error != null) {
+            if (error instanceof IOException) {
+                return true;
+            }
+
+            error = error.getCause();
+        }
+
+        return false;
+    }
+
+    private void showChannelNewContentProgress(boolean show, int current, int total) {
+        if (getView() != null) {
+            getView().showChannelNewContentProgress(show, current, total);
         }
     }
 

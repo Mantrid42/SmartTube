@@ -88,10 +88,22 @@ public class ErrorFixerController extends BasePlayerController implements OnLong
     }
 
     @Override
+    public void onPlayEnd() {
+        // An ended player is not stalled. In particular, pause/list playback modes
+        // seek to the end after this callback and must not trigger error recovery.
+        mBufferingDetector.reset();
+    }
+
+    @Override
     public void onSeekEnd() {
         mBufferingDetector.reset();
+
+        if (getPlayer() == null || !getPlayer().getPlayWhenReady()) {
+            return;
+        }
+
         // Needed to detect additional buffering (e.g. hanged clients).
-        // Don't worry this event will be canceled by subsequent onPlay() or onPause() if everything is ok.
+        // A playing seek will be canceled by a subsequent onPlay() or onPause().
         mBufferingDetector.onStartBuffering();
     }
 

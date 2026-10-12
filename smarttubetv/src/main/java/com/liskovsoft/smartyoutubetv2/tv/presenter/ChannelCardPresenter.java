@@ -126,6 +126,8 @@ public class ChannelCardPresenter extends LongClickPresenter {
 
         View progress = viewHolder.view.findViewById(R.id.channel_progress);
         progress.setVisibility(video.channelNewContentLoading ? View.VISIBLE : View.GONE);
+        viewHolder.view.findViewById(R.id.channel_new_content_underline).setVisibility(
+                video.channelNewContentState == Video.CHANNEL_NEW_CONTENT_ADDITIONAL_THIS_REFRESH ? View.VISIBLE : View.GONE);
 
         updateSeenIndicator(viewHolder.view.findViewById(R.id.channel_seen_indicator), video, viewHolder.view.hasFocus());
 
@@ -190,6 +192,7 @@ public class ChannelCardPresenter extends LongClickPresenter {
             case Video.CHANNEL_NEW_CONTENT_UNVERIFIED:
                 return mNewContentPendingBackgroundColor;
             case Video.CHANNEL_NEW_CONTENT_VERIFIED:
+            case Video.CHANNEL_NEW_CONTENT_ADDITIONAL_THIS_REFRESH:
                 return mNewContentBackgroundColor;
             case Video.CHANNEL_NEW_CONTENT_VERIFIED_THIS_REFRESH:
                 return mNewContentThisRefreshBackgroundColor;

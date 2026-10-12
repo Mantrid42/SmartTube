@@ -229,15 +229,20 @@ public class MainUISettingsPresenter extends BasePresenter<Void> {
         OptionItem eyeOption = UiOptionItem.from(
                 getContext().getString(R.string.channel_new_content_show_eye_indicator),
                 optionItem -> showChannelNewContentEyeIndicatorSettings());
+        OptionItem videoMarkerOption = UiOptionItem.from(
+                getContext().getString(R.string.channel_new_content_video_marker),
+                optionItem -> showChannelNewContentVideoMarkerSettings());
 
         markSeenOption.setRequired(verifyOption);
         delayOption.setRequired(verifyOption, channelHighlighted);
         eyeOption.setRequired(verifyOption, channelHighlighted);
+        videoMarkerOption.setRequired(verifyOption);
 
         settingsPresenter.appendSingleSwitch(verifyOption);
         settingsPresenter.appendSingleButton(markSeenOption);
         settingsPresenter.appendSingleButton(delayOption);
         settingsPresenter.appendSingleButton(eyeOption);
+        settingsPresenter.appendSingleButton(videoMarkerOption);
         settingsPresenter.showDialog(getContext().getString(R.string.local_unseen_list));
     }
 
@@ -374,6 +379,25 @@ public class MainUISettingsPresenter extends BasePresenter<Void> {
 
         settingsPresenter.appendRadioCategory(getContext().getString(R.string.channel_new_content_show_eye_indicator), options);
         settingsPresenter.showDialog(getContext().getString(R.string.channel_new_content_show_eye_indicator));
+    }
+
+    private void showChannelNewContentVideoMarkerSettings() {
+        AppDialogPresenter settingsPresenter = AppDialogPresenter.instance(getContext());
+        List<OptionItem> options = new ArrayList<>();
+
+        for (int[] pair : new int[][] {
+                {R.string.option_disabled, MainUIData.CHANNEL_NEW_CONTENT_VIDEO_MARKER_DISABLED},
+                {R.string.channel_new_content_video_marker_underline, MainUIData.CHANNEL_NEW_CONTENT_VIDEO_MARKER_UNDERLINE},
+                {R.string.channel_new_content_video_marker_card, MainUIData.CHANNEL_NEW_CONTENT_VIDEO_MARKER_CARD}}) {
+            options.add(UiOptionItem.from(getContext().getString(pair[0]), optionItem -> {
+                if (mMainUIData.isChannelNewContentVerificationEnabled()) {
+                    mMainUIData.setChannelNewContentVideoMarkerMode(pair[1]);
+                }
+            }, mMainUIData.getChannelNewContentVideoMarkerMode() == pair[1]));
+        }
+
+        settingsPresenter.appendRadioCategory(getContext().getString(R.string.channel_new_content_video_marker), options);
+        settingsPresenter.showDialog(getContext().getString(R.string.channel_new_content_video_marker));
     }
 
     private boolean isChannelNewContentChannelHighlightEnabled() {

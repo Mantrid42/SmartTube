@@ -478,8 +478,9 @@ public class VideoLoaderController extends BasePlayerController {
             return;
         }
 
-        getPlayer().setPositionMs(getPlayer().getDurationMs());
         getPlayer().setPlayWhenReady(false);
+        // Pause before seeking so a decoder cannot replay buffered tail audio.
+        getPlayer().setPositionMs(getPlayer().getDurationMs());
         getPlayer().showSuggestions(true);
     }
 

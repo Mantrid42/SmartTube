@@ -36,6 +36,7 @@ import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.liskovsoft.smartyoutubetv2.tv.presenter.IconHeaderItemPresenter;
 import com.liskovsoft.smartyoutubetv2.tv.ui.browse.dialog.ErrorDialogFragment;
+import com.liskovsoft.smartyoutubetv2.tv.ui.browse.video.MultiVideoGridFragment;
 import com.liskovsoft.smartyoutubetv2.tv.ui.mod.leanback.headers.ExtendedHeadersSupportFragment;
 import com.liskovsoft.smartyoutubetv2.tv.ui.mod.leanback.misc.ProgressBarManager;
 
@@ -495,6 +496,21 @@ public class BrowseFragment extends BrowseSupportFragment implements BrowseView 
 
         // Essential. Need to run on the main thread.
         new Handler(Looper.getMainLooper()).post(callback);
+    }
+
+    @Override
+    public void showChannelNewContentProgress(boolean show, int current, int total) {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (mSectionFragmentFactory == null) {
+                return;
+            }
+
+            Fragment fragment = mSectionFragmentFactory.getCurrentFragment();
+
+            if (fragment instanceof MultiVideoGridFragment) {
+                ((MultiVideoGridFragment) fragment).showChannelNewContentProgress(show, current, total);
+            }
+        });
     }
 
     @Override

@@ -39,6 +39,7 @@ public class VideoCardPresenter extends LongClickPresenter {
     private int mDefaultTextColor = -1;
     private int mSelectedBackgroundColor = -1;
     private int mSelectedTextColor = -1;
+    private int mNewContentBackgroundColor = -1;
     private int mCardPreviewType;
     private int mThumbQuality;
     private int mWidth;
@@ -56,6 +57,8 @@ public class VideoCardPresenter extends LongClickPresenter {
                 ContextCompat.getColor(context, Helpers.getThemeAttr(context, R.attr.cardSelectedBackground));
         mSelectedTextColor =
                 ContextCompat.getColor(context, R.color.card_selected_text_grey);
+        mNewContentBackgroundColor =
+                ContextCompat.getColor(context, R.color.search_opaque_yellow);
 
         mCardPreviewType = getCardPreviewType(context);
         mThumbQuality = getThumbQuality(context);
@@ -93,8 +96,14 @@ public class VideoCardPresenter extends LongClickPresenter {
     }
 
     private void updateCardBackgroundColor(ComplexImageCardView view, boolean selected) {
-        int backgroundColor = selected ? mSelectedBackgroundColor : mDefaultBackgroundColor;
-        int textColor = selected ? mSelectedTextColor : mDefaultTextColor;
+        boolean isNewChannelVideo = Boolean.TRUE.equals(view.getTag(R.id.channel_new_content_video));
+        Object markerModeTag = view.getTag(R.id.channel_new_content_video_marker_mode);
+        int markerMode = markerModeTag instanceof Integer ? (Integer) markerModeTag : MainUIData.CHANNEL_NEW_CONTENT_VIDEO_MARKER_DISABLED;
+        boolean isGoldCard = !selected && isNewChannelVideo &&
+                markerMode == MainUIData.CHANNEL_NEW_CONTENT_VIDEO_MARKER_CARD;
+        int backgroundColor = selected ? mSelectedBackgroundColor :
+                isGoldCard ? mNewContentBackgroundColor : mDefaultBackgroundColor;
+        int textColor = selected || isGoldCard ? mSelectedTextColor : mDefaultTextColor;
 
         // Both background colors should be set because the view's
         // background is temporarily visible during animations.
@@ -114,6 +123,12 @@ public class VideoCardPresenter extends LongClickPresenter {
         if (contentText != null) {
             contentText.setTextColor(textColor);
         }
+
+        View marker = view.findViewById(R.id.channel_new_content_video_marker);
+        if (marker != null) {
+            marker.setVisibility(isNewChannelVideo && markerMode == MainUIData.CHANNEL_NEW_CONTENT_VIDEO_MARKER_UNDERLINE ?
+                    View.VISIBLE : View.GONE);
+        }
     }
 
     @Override
@@ -124,6 +139,12 @@ public class VideoCardPresenter extends LongClickPresenter {
 
         ComplexImageCardView cardView = (ComplexImageCardView) viewHolder.view;
         Context context = cardView.getContext();
+        int newContentVideoMarkerMode = getChannelNewContentVideoMarkerMode(context);
+        boolean isNewChannelVideo = video.channelNewContentNewVideo &&
+                newContentVideoMarkerMode != MainUIData.CHANNEL_NEW_CONTENT_VIDEO_MARKER_DISABLED;
+        cardView.setTag(R.id.channel_new_content_video, isNewChannelVideo);
+        cardView.setTag(R.id.channel_new_content_video_marker_mode, newContentVideoMarkerMode);
+        updateCardBackgroundColor(cardView, cardView.isSelected());
 
         cardView.setTitleText(video.getTitle());
         cardView.setContentText(video.getSecondTitle());
@@ -220,6 +241,10 @@ public class VideoCardPresenter extends LongClickPresenter {
 
     protected int getThumbQuality(Context context) {
         return MainUIData.instance(context).getThumbQuality();
+    }
+
+    protected int getChannelNewContentVideoMarkerMode(Context context) {
+        return MainUIData.instance(context).getChannelNewContentVideoMarkerMode();
     }
 
     protected boolean isContentEnabled() {

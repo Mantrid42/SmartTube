@@ -26,5 +26,8 @@
     <item name="channel_new_content_text" type="id"/>
     <item name="channel_image_url" type="id"/>
     <item name="channel_new_content_seen" type="id"/>
+    <item name="channel_new_content_video" type="id"/>
+    <item name="channel_new_content_video_marker" type="id"/>
+    <item name="channel_new_content_video_marker_mode" type="id"/>
     <item name="linkify_click_handler" type="id"/>
 </resources>

@@ -31,6 +31,9 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
     public static final int CHANNEL_NEW_CONTENT_MARK_SEEN_ON_CHANNEL = 1;
     public static final int CHANNEL_NEW_CONTENT_EYE_NEVER = 0;
     public static final int CHANNEL_NEW_CONTENT_EYE_WHILE_HIGHLIGHTED = -1;
+    public static final int CHANNEL_NEW_CONTENT_VIDEO_MARKER_DISABLED = 0;
+    public static final int CHANNEL_NEW_CONTENT_VIDEO_MARKER_UNDERLINE = 1;
+    public static final int CHANNEL_NEW_CONTENT_VIDEO_MARKER_CARD = 2;
     public static final int PLAYLISTS_STYLE_GRID = 0;
     public static final int PLAYLISTS_STYLE_ROWS = 1;
     public static final long MENU_ITEM_RECENT_PLAYLIST = 1;
@@ -126,6 +129,7 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
     private int mChannelNewContentMarkSeenMode;
     private int mChannelNewContentHighlightDelaySec;
     private int mChannelNewContentEyeIndicator;
+    private int mChannelNewContentVideoMarkerMode;
 
     private MainUIData(Context context) {
         mContext = context;
@@ -321,6 +325,15 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
         persistState();
     }
 
+    public int getChannelNewContentVideoMarkerMode() {
+        return mChannelNewContentVideoMarkerMode;
+    }
+
+    public void setChannelNewContentVideoMarkerMode(int mode) {
+        mChannelNewContentVideoMarkerMode = mode;
+        persistState();
+    }
+
     public float getCardTextScrollSpeed() {
         return mCardTextScrollSpeed;
     }
@@ -500,6 +513,7 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
         mChannelNewContentMarkSeenMode = Helpers.parseInt(split, 25, CHANNEL_NEW_CONTENT_MARK_SEEN_ON_VIDEO);
         mChannelNewContentHighlightDelaySec = Helpers.parseInt(split, 26, 3);
         mChannelNewContentEyeIndicator = Helpers.parseInt(split, 27, CHANNEL_NEW_CONTENT_EYE_NEVER);
+        mChannelNewContentVideoMarkerMode = Helpers.parseInt(split, 28, CHANNEL_NEW_CONTENT_VIDEO_MARKER_UNDERLINE);
 
         int idx = -1;
         for (Long menuItem : MENU_ITEM_DEFAULT_ORDER) {
@@ -549,7 +563,8 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
                 null, mThumbQuality, mIsCardMultilineSubtitleEnabled, Helpers.mergeList(mMenuItemsOrdered),
                 mIsChannelsFilterEnabled, mIsChannelSearchBarEnabled, mIsPinnedChannelRowsEnabled, mCardPreviewType,
                 mIsUnlocalizedTitlesEnabled, mUiTweaks, mIsChannelNewContentVerificationEnabled,
-                mChannelNewContentMarkSeenMode, mChannelNewContentHighlightDelaySec, mChannelNewContentEyeIndicator));
+                mChannelNewContentMarkSeenMode, mChannelNewContentHighlightDelaySec, mChannelNewContentEyeIndicator,
+                mChannelNewContentVideoMarkerMode));
     }
 
     public static class ColorScheme {
@@ -602,6 +617,12 @@ public class MainUIData extends DataChangeBase implements ProfileChangeListener 
                 mChannelNewContentEyeIndicator != 3 && mChannelNewContentEyeIndicator != 5 &&
                 mChannelNewContentEyeIndicator != 10) {
             mChannelNewContentEyeIndicator = CHANNEL_NEW_CONTENT_EYE_NEVER;
+        }
+
+        if (mChannelNewContentVideoMarkerMode != CHANNEL_NEW_CONTENT_VIDEO_MARKER_DISABLED &&
+                mChannelNewContentVideoMarkerMode != CHANNEL_NEW_CONTENT_VIDEO_MARKER_UNDERLINE &&
+                mChannelNewContentVideoMarkerMode != CHANNEL_NEW_CONTENT_VIDEO_MARKER_CARD) {
+            mChannelNewContentVideoMarkerMode = CHANNEL_NEW_CONTENT_VIDEO_MARKER_UNDERLINE;
         }
     }
 

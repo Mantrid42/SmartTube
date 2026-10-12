@@ -4,7 +4,10 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageView.ScaleType;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import androidx.leanback.widget.ImageCardView;
 
@@ -39,6 +42,27 @@ public class ComplexImageCardView extends ImageCardView {
     private void init() {
         mComplexImageView = findViewById(R.id.main_image_wrapper);
         mHandler = new Handler(Looper.getMainLooper());
+        addChannelNewContentVideoMarker();
+    }
+
+    private void addChannelNewContentVideoMarker() {
+        ViewGroup infoField = findViewById(R.id.info_field);
+
+        if (!(infoField instanceof RelativeLayout) ||
+                infoField.findViewById(R.id.channel_new_content_video_marker) != null) {
+            return;
+        }
+
+        View marker = new View(getContext());
+        marker.setId(R.id.channel_new_content_video_marker);
+        marker.setBackgroundResource(R.color.search_opaque_yellow);
+        marker.setVisibility(View.GONE);
+
+        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                getResources().getDimensionPixelSize(R.dimen.channel_new_content_video_marker_height));
+        params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        infoField.addView(marker, params);
     }
 
     private void enableTitleAnimation(boolean enable) {

@@ -18,6 +18,7 @@ public interface BrowseView {
     void selectSectionItem(Video item);
     void showError(ErrorFragmentData data);
     void showProgressBar(boolean show);
+    void showChannelNewContentProgress(boolean show, int current, int total);
     boolean isProgressBarShowing();
     void focusOnContent();
     boolean isEmpty();

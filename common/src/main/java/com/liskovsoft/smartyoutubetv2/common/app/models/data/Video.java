@@ -43,6 +43,7 @@ public final class Video {
     public static final int CHANNEL_NEW_CONTENT_NOT_NEW = 3;
     public static final int CHANNEL_NEW_CONTENT_WATCHED = 4;
     public static final int CHANNEL_NEW_CONTENT_VERIFIED_THIS_REFRESH = 5;
+    public static final int CHANNEL_NEW_CONTENT_ADDITIONAL_THIS_REFRESH = 6;
     public static final float MIN_WATCHED_PERCENT = 10; // min value for immediately closed videos
     private static final int MAX_AUTHOR_LENGTH_CHARS = 20;
     private static final String BLACK_PLACEHOLDER_URL = "https://via.placeholder.com/1280x720/000000/000000";
@@ -77,6 +78,7 @@ public final class Video {
     public boolean hasNewContent;
     public int channelNewContentState = CHANNEL_NEW_CONTENT_NONE;
     public boolean channelNewContentLoading;
+    public boolean channelNewContentNewVideo;
     public long channelNewContentSeenTimeMs;
     public transient Video channelOwner;
     public boolean isLive;
@@ -193,6 +195,7 @@ public final class Video {
         video.hasNewContent = item.hasNewContent;
         video.channelNewContentState = item.channelNewContentState;
         video.channelNewContentLoading = item.channelNewContentLoading;
+        video.channelNewContentNewVideo = item.channelNewContentNewVideo;
         video.channelNewContentSeenTimeMs = item.channelNewContentSeenTimeMs;
         video.channelOwner = item.channelOwner;
         video.previewUrl = item.previewUrl;
@@ -749,6 +752,7 @@ public final class Video {
         hasNewContent = video.hasNewContent;
         channelNewContentState = video.channelNewContentState;
         channelNewContentLoading = video.channelNewContentLoading;
+        channelNewContentNewVideo = video.channelNewContentNewVideo;
         channelNewContentSeenTimeMs = video.channelNewContentSeenTimeMs;
         channelOwner = video.channelOwner;
     }

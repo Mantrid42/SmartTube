@@ -112,6 +112,10 @@
     <dimen name="lb_basic_card_title_text_size">16sp</dimen>
     <dimen name="lb_basic_card_content_text_size">12sp</dimen>
     <dimen name="lb_basic_card_info_badge_size">16dp</dimen>
+    <dimen name="channel_new_content_video_marker_height">3dp</dimen>
+    <dimen name="channel_new_content_progress_height">3dp</dimen>
+    <dimen name="channel_new_content_progress_spacing">4dp</dimen>
+    <dimen name="channel_new_content_progress_padding">4dp</dimen>
 
     <!-- Elements below aren't used in the app -->
     <dimen name="spinner_width">50dp</dimen>
