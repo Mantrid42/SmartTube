@@ -17,8 +17,16 @@ public class BrowseProcessorManager implements BrowseProcessor {
 
     @Override
     public void process(VideoGroup videoGroup) {
+        process(videoGroup, null);
+    }
+
+    public void process(VideoGroup videoGroup, String channelId) {
         for (BrowseProcessor processor : mProcessors) {
-            processor.process(videoGroup);
+            if (processor instanceof DeArrowProcessor) {
+                ((DeArrowProcessor) processor).process(videoGroup, channelId);
+            } else {
+                processor.process(videoGroup);
+            }
         }
     }
 

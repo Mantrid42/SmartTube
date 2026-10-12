@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="enable_channel_dearrow">Enable DeArrow for this channel</string>
+    <string name="disable_channel_dearrow">Disable DeArrow for this channel</string>
     <string name="header_home">Home</string>
     <string name="title_search">Search</string>
     <string name="header_subscriptions">Subscriptions</string>
