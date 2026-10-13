@@ -33,9 +33,12 @@ public class DeArrowSettingsPresenter extends BasePresenter<Void> {
     public void show(Runnable onFinish) {
         AppDialogPresenter settingsPresenter = AppDialogPresenter.instance(getContext());
         
+        settingsPresenter.appendHeading(getContext().getString(R.string.dearrow_global_activation));
         appendSwitches(settingsPresenter);
         appendThumbQuality(settingsPresenter);
+        settingsPresenter.appendHeading(getContext().getString(R.string.dearrow_channel_activation));
         appendChannelSwitches(settingsPresenter);
+        settingsPresenter.appendSpacer();
         appendLinks(settingsPresenter);
 
         settingsPresenter.showDialog(getContext().getString(R.string.dearrow_provider), onFinish);
@@ -56,7 +59,7 @@ public class DeArrowSettingsPresenter extends BasePresenter<Void> {
                 option -> data.setReplaceThumbnailsEnabled(option.isSelected()), data.isReplaceThumbnailsEnabled()));
         options.get(0).setRadio(options.get(1));
         options.get(1).setRadio(options.get(0));
-        settingsPresenter.appendCheckedCategory(getContext().getString(R.string.channel_dearrow_settings), options);
+        for (OptionItem option : options) settingsPresenter.appendSingleSwitch(option);
         List<OptionItem> thumbnails = new ArrayList<>();
         for (int[] pair : new int[][] {
                 {R.string.thumb_quality_default, ClickbaitRemover.THUMB_QUALITY_DEFAULT},
@@ -66,7 +69,7 @@ public class DeArrowSettingsPresenter extends BasePresenter<Void> {
             thumbnails.add(UiOptionItem.from(getContext().getString(pair[0]),
                     option -> data.setThumbQuality(pair[1]), data.getThumbQuality() == pair[1]));
         }
-        settingsPresenter.appendRadioCategory(getContext().getString(R.string.channel_dearrow_thumbnails), thumbnails);
+        settingsPresenter.appendRadioCategory(getContext().getString(R.string.dearrow_thumbnail_source), thumbnails);
     }
 
     private void appendThumbQuality(AppDialogPresenter settingsPresenter) {
@@ -83,7 +86,7 @@ public class DeArrowSettingsPresenter extends BasePresenter<Void> {
             ));
         }
 
-        settingsPresenter.appendRadioCategory(getContext().getString(R.string.dearrow_not_submitted_thumbs), options);
+        settingsPresenter.appendRadioCategory(getContext().getString(R.string.dearrow_thumbnail_source), options);
     }
 
     private void appendSwitches(AppDialogPresenter settingsPresenter) {
@@ -92,14 +95,14 @@ public class DeArrowSettingsPresenter extends BasePresenter<Void> {
         options.add(UiOptionItem.from(getContext().getString(R.string.card_unlocalized_titles),
                 option -> {
                     mMainUIData.setUnlocalizedTitlesEnabled(option.isSelected());
-                    mDeArrowData.setReplaceTitlesEnabled(false);
+                    if (option.isSelected()) mDeArrowData.setReplaceTitlesEnabled(false);
                 },
                 mMainUIData.isUnlocalizedTitlesEnabled()));
 
         options.add(UiOptionItem.from(getContext().getString(R.string.crowdsoursed_titles),
                 optionItem -> {
                     mDeArrowData.setReplaceTitlesEnabled(optionItem.isSelected());
-                    mMainUIData.setUnlocalizedTitlesEnabled(false);
+                    if (optionItem.isSelected()) mMainUIData.setUnlocalizedTitlesEnabled(false);
                 },
                 mDeArrowData.isReplaceTitlesEnabled()));
 
@@ -109,7 +112,7 @@ public class DeArrowSettingsPresenter extends BasePresenter<Void> {
 
         options.get(0).setRadio(options.get(1));
         options.get(1).setRadio(options.get(0));
-        settingsPresenter.appendCheckedCategory(getContext().getString(R.string.global_dearrow_settings), options);
+        for (OptionItem option : options) settingsPresenter.appendSingleSwitch(option);
     }
 
     private void appendLinks(AppDialogPresenter settingsPresenter) {
