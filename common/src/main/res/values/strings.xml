@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="dearrow_global_activation">Global Activation</string>
+    <string name="dearrow_channel_activation">Per-channel Activation</string>
+    <string name="dearrow_thumbnail_source">Thumbnail source (if there’s no DeArrow submission)</string>
     <string name="enable_channel_dearrow">Enable DeArrow for this channel</string>
     <string name="disable_channel_dearrow">Use global DeArrow settings for this channel</string>
     <string name="exclude_channel_dearrow">Exclude from DeArrow</string>

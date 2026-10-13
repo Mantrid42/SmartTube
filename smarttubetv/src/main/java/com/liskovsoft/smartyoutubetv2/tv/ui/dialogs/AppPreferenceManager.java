@@ -23,6 +23,7 @@ import java.util.Set;
 public class AppPreferenceManager {
     private final Context mContext;
     private final Runnable mOnChange;
+    private final java.util.Map<OptionItem, SwitchPreference> mSwitches = new java.util.IdentityHashMap<>();
 
     public static class ListPreferenceData {
         public final CharSequence[] entries;
@@ -49,6 +50,24 @@ public class AppPreferenceManager {
 
     public Preference createPreference(OptionCategory category) {
         switch (category.type) {
+            case OptionCategory.TYPE_HEADING:
+            case OptionCategory.TYPE_SPACER:
+                Preference decoration = new Preference(mContext) {
+                    @Override
+                    public void onBindViewHolder(androidx.preference.PreferenceViewHolder holder) {
+                        super.onBindViewHolder(holder);
+                        if (category.type == OptionCategory.TYPE_HEADING) {
+                            android.widget.TextView title = (android.widget.TextView) holder.findViewById(android.R.id.title);
+                            title.setTypeface(null, android.graphics.Typeface.BOLD);
+                        }
+                    }
+                };
+                decoration.setPersistent(false);
+                decoration.setSelectable(false);
+                decoration.setLayoutResource(category.type == OptionCategory.TYPE_HEADING ?
+                        R.layout.preference_section_heading : R.layout.preference_spacer);
+                decoration.setTitle(category.title);
+                return decoration;
             case OptionCategory.TYPE_CHECKBOX_LIST:
                 return createCheckedListPreference(category);
             case OptionCategory.TYPE_RADIO_LIST:
@@ -150,7 +169,8 @@ public class AppPreferenceManager {
 
         if (category.options.size() == 1) {
             OptionItem item = category.options.get(0);
-            Preference preference = new SwitchPreference(mContext);
+            SwitchPreference preference = new SwitchPreference(mContext);
+            mSwitches.put(item, preference);
             preference.setPersistent(false);
             preference.setTitle(item.getTitle());
             preference.setDefaultValue(item.isSelected());
@@ -158,6 +178,13 @@ public class AppPreferenceManager {
                 item.onSelect((boolean) newValue);
                 if (mOnChange != null) {
                     Utils.postDelayed(mOnChange, 0);
+                }
+                if ((boolean) newValue && item.getRadio() != null) {
+                    for (OptionItem other : item.getRadio()) {
+                        other.onSelect(false);
+                        SwitchPreference otherPreference = mSwitches.get(other);
+                        if (otherPreference != null) otherPreference.setChecked(false);
+                    }
                 }
                 return true;
             });

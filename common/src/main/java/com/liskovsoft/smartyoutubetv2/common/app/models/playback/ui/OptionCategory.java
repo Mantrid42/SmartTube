@@ -5,6 +5,13 @@ import java.util.Collections;
 import java.util.List;
 
 public class OptionCategory {
+    public static OptionCategory heading(CharSequence title) {
+        return new OptionCategory(title, Collections.emptyList(), TYPE_HEADING);
+    }
+
+    public static OptionCategory spacer() {
+        return new OptionCategory(null, Collections.emptyList(), TYPE_SPACER);
+    }
     public static OptionCategory radioList(CharSequence title, List<OptionItem> items) {
         return new OptionCategory(title, items, TYPE_RADIO_LIST);
     }
@@ -68,6 +75,8 @@ public class OptionCategory {
     public static final int TYPE_LONG_TEXT = 5;
     public static final int TYPE_CHAT = 6;
     public static final int TYPE_COMMENTS = 7;
+    public static final int TYPE_HEADING = 8;
+    public static final int TYPE_SPACER = 9;
     public final int id;
     public final int type;
     public final CharSequence title;
