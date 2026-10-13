@@ -62,3 +62,7 @@ Changing channel membership or exclusion does not reload the Channels list. Sele
 Native Windows beta validation uses `gradlew.bat :common:testStbetaDebugUnitTest :smarttubetv:testStbetaDebugUnitTest :smarttubetv:assembleStbetaDebug` with `JAVA_HOME` set to the installed updated Java 11 runtime and `ANDROID_HOME`/`ANDROID_SDK_ROOT` set to the native Android SDK. Java 11.0.2 cannot read this machine's current debug keystore; Java 11.0.31 works. The beta APK is under `smarttubetv/build/outputs/apk/stbeta/debug/`.
 
 Keep implementation commits on their feature branches; use `testing/combined` for merge resolutions and integration documentation.
+
+## Menu layout
+
+`AppDialogPresenter.appendHeading(title)` adds a bold, indented, muted heading; `appendSpacer()` adds a blank 24dp row. Neither row is selectable or focusable. DeArrow uses these to show Global Activation and Per-channel Activation options directly, followed by spacing before its status and About links.
