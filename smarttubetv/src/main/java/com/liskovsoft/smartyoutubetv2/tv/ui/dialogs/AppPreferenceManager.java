@@ -59,6 +59,7 @@ public class AppPreferenceManager {
                         if (category.type == OptionCategory.TYPE_HEADING) {
                             android.widget.TextView title = (android.widget.TextView) holder.findViewById(android.R.id.title);
                             title.setTypeface(null, android.graphics.Typeface.BOLD);
+                            title.getPaint().setFakeBoldText(true);
                         }
                     }
                 };

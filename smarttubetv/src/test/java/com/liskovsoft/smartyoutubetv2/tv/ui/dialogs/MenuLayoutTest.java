@@ -36,7 +36,7 @@ public class MenuLayoutTest {
             if (category.type == OptionCategory.TYPE_HEADING) {
                 TextView title = (TextView) row;
                 assertEquals("Global Activation", title.getText().toString());
-                assertTrue(title.getTypeface().isBold());
+                assertTrue(title.getPaint().isFakeBoldText());
                 assertTrue(title.getAlpha() < 1f);
             }
         }
